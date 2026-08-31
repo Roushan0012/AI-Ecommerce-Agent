@@ -1,6 +1,6 @@
 # Database Schema & Migrations
 
-This directory contains the database migration scripts and schema definitions for the AI Commerce Agent platform (Supabase PostgreSQL).
+This directory contains the database migration scripts, catalog seed files, and schema definitions for the AI Commerce Agent platform (Supabase PostgreSQL).
 
 ## Schema Overview
 
@@ -50,6 +50,17 @@ Stores line items within each order.
 
 ---
 
-## Applying Migrations
+## Migration & Seed Scripts
 
-Run the SQL migration script located in `001_initial_schema.sql` via Supabase SQL Editor or using SQLAlchemy/psycopg2.
+1. `001_initial_schema.sql`: Core schema creation with indexes, foreign keys, and check constraints.
+2. `002_seed_products.sql`: Idempotent SQL script to seed the demo merchant (`AI Commerce Demo Store`) and 14 realistic products across Audio, Computer Accessories, Chargers & Cables, and Work & Travel categories.
+
+---
+
+## Running Seeds & Migrations via Python
+
+From `backend/`:
+```bash
+# Seed demo catalog
+python -m app.core.seed
+```

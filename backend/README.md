@@ -10,14 +10,21 @@ backend/
 │   ├── api/
 │   ├── core/
 │   │   ├── config.py
-│   │   └── database.py
+│   │   ├── database.py
+│   │   └── seed.py
 │   ├── models/
+│   │   ├── merchant.py
+│   │   ├── product.py
+│   │   ├── order.py
+│   │   └── order_item.py
 │   ├── schemas/
 │   ├── services/
 │   └── main.py
 ├── tests/
 │   ├── test_health.py
-│   └── test_database_health.py
+│   ├── test_database_health.py
+│   ├── test_models.py
+│   └── test_seed.py
 ├── .env.example
 ├── requirements.txt
 └── README.md
@@ -53,13 +60,23 @@ Required environment variables:
 
 > **Note**: `.env` contains sensitive credentials and is strictly excluded from Git.
 
-### 4. Run Tests
+### 4. Seed Product Catalog Data
+
+Populate the demo merchant (`AI Commerce Demo Store`) and 14 realistic products across 4 categories (Audio, Computer Accessories, Chargers & Cables, Work & Travel):
+
+```bash
+python -m app.core.seed
+```
+
+> **Note**: The seed script is completely **idempotent**. Running it multiple times safely updates existing products by SKU without creating duplicates.
+
+### 5. Run Tests
 
 ```bash
 pytest
 ```
 
-### 5. Run Development Server
+### 6. Run Development Server
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
