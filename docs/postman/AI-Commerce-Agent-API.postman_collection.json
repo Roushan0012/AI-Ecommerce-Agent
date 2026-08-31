@@ -169,6 +169,69 @@
 			"response": []
 		},
 		{
+			"name": "AI Agent - Search Products",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Response contains intent, message, and matching items\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"message\");",
+							"    pm.expect(jsonData).to.have.property(\"intent\");",
+							"    pm.expect(jsonData).to.have.property(\"items\");",
+							"    pm.expect(jsonData).to.have.property(\"total\");",
+							"    pm.expect(jsonData.total).to.be.at.least(1);",
+							"});",
+							"",
+							"pm.test(\"Returned products match earbuds and budget\", function () {",
+							"    var hasMatch = jsonData.items.some(function(item) {",
+							"        return item.category === \"Audio\" && parseFloat(item.price) <= 5000;",
+							"    });",
+							"    pm.expect(hasMatch).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"message\": \"Show me wireless earbuds under ₹5000\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent/search",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent",
+						"search"
+					]
+				},
+				"description": "End-to-end AI Agent product discovery endpoint translating natural language query into catalog search results."
+			},
+			"response": []
+		},
+		{
 			"name": "List Products (Default)",
 			"event": [
 				{

@@ -134,8 +134,38 @@ class MockAIProvider(BaseAIProvider):
 
         # Clean trailing/leading punctuation
         search_query = re.sub(r"[^\w\s-]", "", search_query).strip()
-        if not search_query:
-            search_query = category or "products"
+
+        # If search query is generic or merely restates the category name, clear it so category filter acts cleanly
+        if category and (
+            search_query in [category.lower(), "accessories", "products", "items", "something", "gear", "device", "devices"]
+            or search_query == "something for travel"
+        ):
+            search_query = None
+        elif search_query in ["something", "anything", "products", "items"]:
+            search_query = None
+
+        if search_query:
+            # Normalize trailing plurals for robust catalog substring matching
+            if search_query.endswith("chargers"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("headphones"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("earbuds"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("speakers"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("keyboards"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("stands"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("cables"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("backpacks"):
+                search_query = search_query[:-1]
+            elif search_query.endswith("pouches"):
+                search_query = search_query[:-2]
+            elif search_query.endswith("flasks"):
+                search_query = search_query[:-1]
 
         # Build assistant summary message
         price_summary = ""
@@ -147,7 +177,8 @@ class MockAIProvider(BaseAIProvider):
             price_summary = f" above ₹{min_price:,.0f}"
 
         cat_summary = f" in {category}" if category else ""
-        assistant_msg = f"I found options matching '{search_query}'{cat_summary}{price_summary}."
+        query_summary = f"matching '{search_query}'" if search_query else "in catalog"
+        assistant_msg = f"I found options {query_summary}{cat_summary}{price_summary}."
 
         intent_obj = ShoppingIntent(
             intent="product_search",

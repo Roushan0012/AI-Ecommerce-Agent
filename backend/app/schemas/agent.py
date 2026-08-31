@@ -1,6 +1,7 @@
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from app.schemas.product import ProductResponse
 
 
 class ShoppingIntent(BaseModel):
@@ -71,3 +72,40 @@ class AgentUnderstandResponse(BaseModel):
         ...,
         description="Structured shopping intent",
     )
+
+
+class AgentSearchRequest(BaseModel):
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Customer natural-language shopping request",
+    )
+    page: int = Field(1, ge=1, description="Page number (1-indexed)")
+    page_size: int = Field(10, ge=1, le=100, description="Items per page")
+
+    @field_validator("message")
+    @classmethod
+    def validate_non_empty(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Message cannot be empty or only whitespace")
+        return stripped
+
+
+class AgentSearchResponse(BaseModel):
+    message: str = Field(
+        ...,
+        description="Assistant conversational summary of discovery results",
+    )
+    intent: ShoppingIntent = Field(
+        ...,
+        description="Structured shopping intent derived from query",
+    )
+    items: List[ProductResponse] = Field(
+        default_factory=list,
+        description="Matching products found in catalog",
+    )
+    total: int = Field(0, ge=0, description="Total matching products count")
+    page: int = Field(1, ge=1, description="Current page number")
+    page_size: int = Field(10, ge=1, description="Items per page")

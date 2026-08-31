@@ -24,7 +24,8 @@ backend/
 │   │   ├── agent.py
 │   │   └── product.py
 │   ├── services/
-│   │   └── ai_agent.py
+│   │   ├── ai_agent.py
+│   │   └── product_service.py
 │   └── main.py
 ├── tests/
 │   ├── test_agent_api.py
@@ -102,10 +103,10 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `GET /api/health` — Basic service status
 - `GET /api/health/database` — Supabase PostgreSQL database connectivity check
 
-### 2. AI Agent Endpoint
+### 2. AI Agent Endpoints
 
 #### `POST /api/agent/understand`
-Converts customer natural language shopping requests into structured shopping intent.
+Converts customer natural language shopping requests into structured shopping intent without performing catalog search.
 
 **Example Request:**
 ```bash
@@ -114,19 +115,57 @@ curl -X POST "http://localhost:8000/api/agent/understand" \
   -d '{"message": "I need wireless headphones under ₹5000"}'
 ```
 
+#### `POST /api/agent/search`
+End-to-end AI agent product discovery:
+1. Understands natural language customer message.
+2. Extracts structured shopping intent (`search_query`, `category`, `price bounds`, `availability`).
+3. Queries Supabase PostgreSQL catalog with translated filters.
+4. Returns conversational summary, structured intent, and matching product items with pagination.
+
+**Example Request:**
+```bash
+curl -X POST "http://localhost:8000/api/agent/search" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Show me wireless earbuds under ₹5000"}'
+```
+
 **Example Response:**
 ```json
 {
-  "message": "I found options matching 'wireless headphones' in Audio under ₹5,000.",
+  "message": "Found 1 product(s) matching your request.",
   "intent": {
     "intent": "product_search",
-    "search_query": "wireless headphones",
+    "search_query": "wireless earbud",
     "category": "Audio",
     "min_price": null,
     "max_price": "5000.0",
     "currency": "INR",
     "availability_required": true
-  }
+  },
+  "items": [
+    {
+      "id": "465206d3-bd4d-4f9f-b705-010670ab4006",
+      "merchant_id": "6b583a79-0f19-483c-81da-cdf9f13aef71",
+      "name": "AuraSound Mini Wireless Earbuds",
+      "description": "Compact true wireless earbuds with environmental noise cancellation...",
+      "category": "Audio",
+      "price": "3499.00",
+      "currency": "INR",
+      "inventory": 80,
+      "sku": "AUD-AS-EB02",
+      "attributes": {
+        "brand": "AuraSound",
+        "color": "Pearl White",
+        "connectivity": "Bluetooth 5.3"
+      },
+      "is_active": true,
+      "created_at": "2026-08-31T20:31:17.027173Z",
+      "updated_at": "2026-08-31T20:31:17.027181Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 10
 }
 ```
 
@@ -145,11 +184,6 @@ List active products with filtering, search, and pagination.
 | `available` | `boolean` | `null` | When `true`, returns only in-stock active items (`inventory > 0`) |
 | `page` | `integer` | `1` | Page number (1-indexed, `ge=1`) |
 | `page_size` | `integer` | `10` | Number of items per page (`1 <= page_size <= 100`) |
-
-**Example Request:**
-```bash
-curl "http://localhost:8000/api/products?category=Audio&min_price=2000&max_price=15000&page=1&page_size=5"
-```
 
 #### `GET /api/products/{product_id}`
 Retrieve full product details by UUID. Returns `404 Not Found` if the product does not exist.

@@ -50,11 +50,12 @@ npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 | 1 | **Health Check** | `GET` | `/api/health` | Status 200, status = "ok", service = "ai-commerce-agent-api" |
 | 2 | **Database Health Check** | `GET` | `/api/health/database` | Status 200, status = "ok", database = "connected" |
 | 3 | **AI Agent - Understand Intent** | `POST` | `/api/agent/understand` | Status 200, extracts structured shopping intent (`intent`, `search_query`, `category`, `price bounds`) |
-| 4 | **List Products (Default)** | `GET` | `/api/products` | Status 200, returns pagination object (`items`, `total`, `page`, `page_size`) |
-| 5 | **Get Product Detail** | `GET` | `/api/products/:id` | Status 200, complete schema (`name`, `price`, `attributes`, `sku`, etc.) |
-| 6 | **Filter Products by Category** | `GET` | `/api/products?category=Audio` | Status 200, all items match `category = Audio` |
-| 7 | **Filter Products by Price Range** | `GET` | `/api/products?min_price=5000&max_price=20000` | Status 200, all items within [5000, 20000] |
-| 8 | **Search Products** | `GET` | `/api/products?search=headphone` | Status 200, items match keyword in name/description |
-| 9 | **Filter Available Products** | `GET` | `/api/products?available=true` | Status 200, all items active and in-stock (`inventory > 0`) |
-| 10 | **Paginate Products** | `GET` | `/api/products?page=1&page_size=5` | Status 200, returns exactly 5 items for page 1 |
-| 11 | **Get Product Detail (404)** | `GET` | `/api/products/00000000-0000-0000-0000-000000000000` | Status 404, detail = "Product not found" |
+| 4 | **AI Agent - Search Products** | `POST` | `/api/agent/search` | Status 200, performs end-to-end intent understanding and product discovery |
+| 5 | **List Products (Default)** | `GET` | `/api/products` | Status 200, returns pagination object (`items`, `total`, `page`, `page_size`) |
+| 6 | **Get Product Detail** | `GET` | `/api/products/:id` | Status 200, complete schema (`name`, `price`, `attributes`, `sku`, etc.) |
+| 7 | **Filter Products by Category** | `GET` | `/api/products?category=Audio` | Status 200, all items match `category = Audio` |
+| 8 | **Filter Products by Price Range** | `GET` | `/api/products?min_price=5000&max_price=20000` | Status 200, all items within [5000, 20000] |
+| 9 | **Search Products** | `GET` | `/api/products?search=headphone` | Status 200, items match keyword in name/description |
+| 10 | **Filter Available Products** | `GET` | `/api/products?available=true` | Status 200, all items active and in-stock (`inventory > 0`) |
+| 11 | **Paginate Products** | `GET` | `/api/products?page=1&page_size=5` | Status 200, returns exactly 5 items for page 1 |
+| 12 | **Get Product Detail (404)** | `GET` | `/api/products/00000000-0000-0000-0000-000000000000` | Status 404, detail = "Product not found" |

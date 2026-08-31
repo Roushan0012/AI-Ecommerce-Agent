@@ -1,4 +1,6 @@
 from app.schemas.agent import (
+    AgentSearchRequest,
+    AgentSearchResponse,
     AgentUnderstandRequest,
     AgentUnderstandResponse,
     ShoppingIntent,
@@ -16,4 +18,6 @@ __all__ = [
     "ShoppingIntent",
     "AgentUnderstandRequest",
     "AgentUnderstandResponse",
+    "AgentSearchRequest",
+    "AgentSearchResponse",
 ]

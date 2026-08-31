@@ -2,11 +2,10 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models import Product
 from app.schemas.product import ProductListResponse, ProductResponse
+from app.services.product_service import product_service
 
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
@@ -37,56 +36,13 @@ def list_products(
             detail="min_price cannot be greater than max_price",
         )
 
-    # Base query filters
-    filters = []
-
-    # Handle active & availability filtering
-    if available is True:
-        filters.append(Product.is_active.is_(True))
-        filters.append(Product.inventory > 0)
-    elif available is False:
-        filters.append(or_(Product.is_active.is_(False), Product.inventory <= 0))
-    else:
-        filters.append(Product.is_active.is_(True))
-
-    # Category filter (case-insensitive)
-    if category and category.strip():
-        filters.append(func.lower(Product.category) == category.strip().lower())
-
-    # Search filter (case-insensitive on name or description)
-    if search and search.strip():
-        search_pattern = f"%{search.strip()}%"
-        filters.append(
-            or_(
-                Product.name.ilike(search_pattern),
-                Product.description.ilike(search_pattern),
-            )
-        )
-
-    # Price filters
-    if min_price is not None:
-        filters.append(Product.price >= min_price)
-    if max_price is not None:
-        filters.append(Product.price <= max_price)
-
-    # Total matching count
-    count_query = select(func.count(Product.id)).where(*filters)
-    total = db.execute(count_query).scalar() or 0
-
-    # Query items with deterministic order
-    offset = (page - 1) * page_size
-    query = (
-        select(Product)
-        .where(*filters)
-        .order_by(Product.name.asc(), Product.id.asc())
-        .offset(offset)
-        .limit(page_size)
-    )
-    items = db.execute(query).scalars().all()
-
-    return ProductListResponse(
-        items=items,
-        total=total,
+    return product_service.list_products(
+        db=db,
+        search=search,
+        category=category,
+        min_price=min_price,
+        max_price=max_price,
+        available=available,
         page=page,
         page_size=page_size,
     )
@@ -97,8 +53,7 @@ def get_product(
     product_id: UUID,
     db: Session = Depends(get_db),
 ):
-    stmt = select(Product).where(Product.id == product_id)
-    product = db.execute(stmt).scalar_one_or_none()
+    product = product_service.get_product_by_id(db=db, product_id=product_id)
 
     if not product:
         raise HTTPException(

@@ -7,6 +7,10 @@ from app.services.ai_agent import (
     OpenAICompatibleProvider,
     ai_agent_service,
 )
+from app.services.product_service import (
+    ProductService,
+    product_service,
+)
 
 __all__ = [
     "AIAgentService",
@@ -16,4 +20,6 @@ __all__ = [
     "AIConfigurationError",
     "AIProviderError",
     "ai_agent_service",
+    "ProductService",
+    "product_service",
 ]
