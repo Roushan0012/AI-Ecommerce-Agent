@@ -33,36 +33,38 @@ The API will be available at `http://127.0.0.1:8000`.
 
 ---
 
-## 3. Running the Health Check Request
+## 3. Available Requests
 
-1. In Postman, expand the **AI Commerce Agent API** collection.
-2. Select the **Health Check** request:
-   - **Method**: `GET`
-   - **URL**: `http://127.0.0.1:8000/api/health`
-3. Click **Send**.
+### A. Health Check
 
-### Expected Response
-
-- **Status**: `200 OK`
-- **Body**:
+- **Method**: `GET`
+- **URL**: `http://127.0.0.1:8000/api/health`
+- **Expected Status**: `200 OK`
+- **Expected Response**:
   ```json
   {
     "status": "ok",
     "service": "ai-commerce-agent-api"
   }
   ```
+- **Tests**:
+  1. `Status code is 200`
+  2. `Response contains status = ok`
+  3. `Response contains service = ai-commerce-agent-api`
 
----
+### B. Database Health Check
 
-## 4. Postman Tests
-
-The **Health Check** request includes automated JavaScript tests under the **Tests** tab:
-
-1. **Status code is 200**:
-   Verifies that the server returns an HTTP 200 OK status code.
-2. **Response contains status = ok**:
-   Asserts that the JSON response payload contains `"status": "ok"`.
-3. **Response contains service = ai-commerce-agent-api**:
-   Asserts that the JSON response payload contains `"service": "ai-commerce-agent-api"`.
-
-When you click **Send**, view the **Test Results** tab in Postman to confirm all 3 assertions pass (3/3).
+- **Method**: `GET`
+- **URL**: `http://127.0.0.1:8000/api/health/database`
+- **Expected Status**: `200 OK`
+- **Expected Response**:
+  ```json
+  {
+    "status": "ok",
+    "database": "connected"
+  }
+  ```
+- **Tests**:
+  1. `Status code is 200`
+  2. `Response contains status = ok`
+  3. `Response contains database = connected`

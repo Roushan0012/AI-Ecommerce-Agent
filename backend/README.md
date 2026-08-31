@@ -9,12 +9,16 @@ backend/
 ├── app/
 │   ├── api/
 │   ├── core/
+│   │   ├── config.py
+│   │   └── database.py
 │   ├── models/
 │   ├── schemas/
 │   ├── services/
 │   └── main.py
 ├── tests/
-│   └── test_health.py
+│   ├── test_health.py
+│   └── test_database_health.py
+├── .env.example
 ├── requirements.txt
 └── README.md
 ```
@@ -34,13 +38,28 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Run Tests
+### 3. Configure Environment Variables
+
+Copy `.env.example` to `.env` and fill in your Supabase connection parameters:
+
+```bash
+cp .env.example .env
+```
+
+Required environment variables:
+- `DATABASE_URL`: PostgreSQL connection string (e.g. `postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/postgres`)
+- `SUPABASE_URL`: Supabase project URL (optional for database connection probe)
+- `SUPABASE_PUBLISHABLE_KEY`: Supabase anon/publishable key (optional for database connection probe)
+
+> **Note**: `.env` contains sensitive credentials and is strictly excluded from Git.
+
+### 4. Run Tests
 
 ```bash
 pytest
 ```
 
-### 4. Run Development Server
+### 5. Run Development Server
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -48,7 +67,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Endpoints & Documentation
 
-- **Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+- **Service Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+- **Database Health Check**: [http://localhost:8000/api/health/database](http://localhost:8000/api/health/database)
 - **Interactive Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Interactive ReDoc UI**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 - **OpenAPI Schema**: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
