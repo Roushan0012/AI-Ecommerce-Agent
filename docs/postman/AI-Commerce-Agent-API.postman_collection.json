@@ -232,6 +232,66 @@
 			"response": []
 		},
 		{
+			"name": "AI Agent - Recommend Products",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Response contains recommendations with scores and explanations\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"message\");",
+							"    pm.expect(jsonData).to.have.property(\"intent\");",
+							"    pm.expect(jsonData).to.have.property(\"items\");",
+							"    pm.expect(jsonData).to.have.property(\"total\");",
+							"    pm.expect(jsonData.total).to.be.at.least(1);",
+							"    pm.expect(jsonData.items[0]).to.have.property(\"score\");",
+							"    pm.expect(jsonData.items[0]).to.have.property(\"reason\");",
+							"    pm.expect(jsonData.items[0]).to.have.property(\"product\");",
+							"    pm.expect(jsonData.items[0].score).to.be.within(0.0, 1.0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"message\": \"I need wireless headphones under ₹5000 for travelling\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent/recommend",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent",
+						"recommend"
+					]
+				},
+				"description": "AI Agent recommendation engine endpoint scoring and ranking catalog candidates with explainability reasons."
+			},
+			"response": []
+		},
+		{
 			"name": "List Products (Default)",
 			"event": [
 				{

@@ -1,8 +1,11 @@
 from app.schemas.agent import (
+    AgentRecommendRequest,
+    AgentRecommendResponse,
     AgentSearchRequest,
     AgentSearchResponse,
     AgentUnderstandRequest,
     AgentUnderstandResponse,
+    RecommendedProductItem,
     ShoppingIntent,
 )
 from app.schemas.product import (
@@ -20,4 +23,7 @@ __all__ = [
     "AgentUnderstandResponse",
     "AgentSearchRequest",
     "AgentSearchResponse",
+    "RecommendedProductItem",
+    "AgentRecommendRequest",
+    "AgentRecommendResponse",
 ]

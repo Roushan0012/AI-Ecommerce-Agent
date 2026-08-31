@@ -25,7 +25,8 @@ backend/
 │   │   └── product.py
 │   ├── services/
 │   │   ├── ai_agent.py
-│   │   └── product_service.py
+│   │   ├── product_service.py
+│   │   └── recommendation_service.py
 │   └── main.py
 ├── tests/
 │   ├── test_agent_api.py
@@ -33,6 +34,7 @@ backend/
 │   ├── test_health.py
 │   ├── test_models.py
 │   ├── test_products_api.py
+│   ├── test_recommendation_api.py
 │   └── test_seed.py
 ├── .env.example
 ├── requirements.txt
@@ -129,13 +131,28 @@ curl -X POST "http://localhost:8000/api/agent/search" \
   -d '{"message": "Show me wireless earbuds under ₹5000"}'
 ```
 
+#### `POST /api/agent/recommend`
+AI Recommendation Engine endpoint that scores and ranks product candidates using multi-factor deterministic scoring:
+- **Hard Constraints**: Products out-of-stock, inactive, or exceeding budget are excluded (score 0.0).
+- **Category Alignment (30%)**: Matches category from extracted intent.
+- **Keyword & Attribute Relevance (35%)**: Token matches across title, description, and JSONB attributes.
+- **Price Fitness (20%)**: Proximity to requested budget without constraint violation.
+- **Inventory Health (15%)**: Stock depth weighting.
+
+**Example Request:**
+```bash
+curl -X POST "http://localhost:8000/api/agent/recommend" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "I need wireless headphones under ₹5000 for travelling"}'
+```
+
 **Example Response:**
 ```json
 {
-  "message": "Found 1 product(s) matching your request.",
+  "message": "Found 2 top recommendation(s) for your request.",
   "intent": {
     "intent": "product_search",
-    "search_query": "wireless earbud",
+    "search_query": "wireless headphone",
     "category": "Audio",
     "min_price": null,
     "max_price": "5000.0",
@@ -144,26 +161,22 @@ curl -X POST "http://localhost:8000/api/agent/search" \
   },
   "items": [
     {
-      "id": "465206d3-bd4d-4f9f-b705-010670ab4006",
-      "merchant_id": "6b583a79-0f19-483c-81da-cdf9f13aef71",
-      "name": "AuraSound Mini Wireless Earbuds",
-      "description": "Compact true wireless earbuds with environmental noise cancellation...",
-      "category": "Audio",
-      "price": "3499.00",
-      "currency": "INR",
-      "inventory": 80,
-      "sku": "AUD-AS-EB02",
-      "attributes": {
-        "brand": "AuraSound",
-        "color": "Pearl White",
-        "connectivity": "Bluetooth 5.3"
+      "product": {
+        "id": "465206d3-bd4d-4f9f-b705-010670ab4006",
+        "merchant_id": "6b583a79-0f19-483c-81da-cdf9f13aef71",
+        "name": "AuraSound Mini Wireless Earbuds",
+        "category": "Audio",
+        "price": "3499.00",
+        "currency": "INR",
+        "inventory": 80,
+        "sku": "AUD-AS-EB02",
+        "is_active": true
       },
-      "is_active": true,
-      "created_at": "2026-08-31T20:31:17.027173Z",
-      "updated_at": "2026-08-31T20:31:17.027181Z"
+      "score": 0.73,
+      "reason": "Matches category 'Audio'; matched keywords 'wireless'; within budget (₹3,499 <= ₹5,000); available in stock (80 units)"
     }
   ],
-  "total": 1,
+  "total": 2,
   "page": 1,
   "page_size": 10
 }
@@ -173,17 +186,6 @@ curl -X POST "http://localhost:8000/api/agent/search" \
 
 #### `GET /api/products`
 List active products with filtering, search, and pagination.
-
-**Query Parameters:**
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `search` | `string` | `null` | Keyword search against name & description |
-| `category` | `string` | `null` | Filter by category (e.g. `Audio`, `Computer Accessories`) |
-| `min_price` | `decimal` | `null` | Minimum price filter (INR) |
-| `max_price` | `decimal` | `null` | Maximum price filter (INR) |
-| `available` | `boolean` | `null` | When `true`, returns only in-stock active items (`inventory > 0`) |
-| `page` | `integer` | `1` | Page number (1-indexed, `ge=1`) |
-| `page_size` | `integer` | `10` | Number of items per page (`1 <= page_size <= 100`) |
 
 #### `GET /api/products/{product_id}`
 Retrieve full product details by UUID. Returns `404 Not Found` if the product does not exist.

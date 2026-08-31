@@ -11,6 +11,10 @@ from app.services.product_service import (
     ProductService,
     product_service,
 )
+from app.services.recommendation_service import (
+    RecommendationService,
+    recommendation_service,
+)
 
 __all__ = [
     "AIAgentService",
@@ -22,4 +26,6 @@ __all__ = [
     "ai_agent_service",
     "ProductService",
     "product_service",
+    "RecommendationService",
+    "recommendation_service",
 ]

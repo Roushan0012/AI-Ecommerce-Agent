@@ -109,3 +109,46 @@ class AgentSearchResponse(BaseModel):
     total: int = Field(0, ge=0, description="Total matching products count")
     page: int = Field(1, ge=1, description="Current page number")
     page_size: int = Field(10, ge=1, description="Items per page")
+
+
+class RecommendedProductItem(BaseModel):
+    product: ProductResponse = Field(..., description="Recommended product details")
+    score: float = Field(..., ge=0.0, le=1.0, description="Recommendation relevance score between 0.0 and 1.0")
+    reason: str = Field(..., description="Explanation of why this product was recommended")
+
+
+class AgentRecommendRequest(BaseModel):
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="Customer natural-language recommendation request",
+    )
+    page: int = Field(1, ge=1, description="Page number (1-indexed)")
+    page_size: int = Field(10, ge=1, le=100, description="Items per page")
+
+    @field_validator("message")
+    @classmethod
+    def validate_non_empty(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Message cannot be empty or only whitespace")
+        return stripped
+
+
+class AgentRecommendResponse(BaseModel):
+    message: str = Field(
+        ...,
+        description="Assistant conversational summary of recommendations",
+    )
+    intent: ShoppingIntent = Field(
+        ...,
+        description="Structured shopping intent derived from request",
+    )
+    items: List[RecommendedProductItem] = Field(
+        default_factory=list,
+        description="Ranked list of recommended product items",
+    )
+    total: int = Field(0, ge=0, description="Total matching recommended products count")
+    page: int = Field(1, ge=1, description="Current page number")
+    page_size: int = Field(10, ge=1, description="Items per page")
