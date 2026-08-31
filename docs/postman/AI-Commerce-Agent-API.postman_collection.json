@@ -109,6 +109,66 @@
 			"response": []
 		},
 		{
+			"name": "AI Agent - Understand Shopping Intent",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Response contains message and structured intent\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"message\");",
+							"    pm.expect(jsonData).to.have.property(\"intent\");",
+							"});",
+							"",
+							"pm.test(\"Intent correctly extracted product_search and price bound\", function () {",
+							"    pm.expect(jsonData.intent.intent).to.eql(\"product_search\");",
+							"    pm.expect(jsonData.intent.category).to.eql(\"Audio\");",
+							"    pm.expect(parseFloat(jsonData.intent.max_price)).to.eql(5000);",
+							"    pm.expect(jsonData.intent.currency).to.eql(\"INR\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"message\": \"I need wireless headphones under ₹5000\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent/understand",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent",
+						"understand"
+					]
+				},
+				"description": "AI Agent endpoint for understanding customer shopping requests and converting them to structured shopping intents."
+			},
+			"response": []
+		},
+		{
 			"name": "List Products (Default)",
 			"event": [
 				{

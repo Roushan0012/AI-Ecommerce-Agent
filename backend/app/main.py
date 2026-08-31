@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.agent import router as agent_router
 from app.api.products import router as products_router
 from app.core.database import check_database_connection
 
@@ -27,6 +28,7 @@ app.add_middleware(
 
 # Include API Routers
 app.include_router(products_router)
+app.include_router(agent_router)
 
 
 @app.get("/api/health")
