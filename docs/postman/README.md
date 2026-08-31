@@ -24,7 +24,17 @@ The API will be available at `http://127.0.0.1:8000`.
 
 ---
 
-## 2. Importing the Collection into Postman
+## 2. Running Postman Collection via CLI (Newman)
+
+To run the entire automated verification suite with Newman:
+
+```bash
+npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
+```
+
+---
+
+## 3. Importing the Collection into Postman UI
 
 1. Open **Postman**.
 2. Click the **Import** button in the top left workspace navigation.
@@ -33,38 +43,17 @@ The API will be available at `http://127.0.0.1:8000`.
 
 ---
 
-## 3. Available Requests
+## 4. Available Requests & Test Assertions
 
-### A. Health Check
-
-- **Method**: `GET`
-- **URL**: `http://127.0.0.1:8000/api/health`
-- **Expected Status**: `200 OK`
-- **Expected Response**:
-  ```json
-  {
-    "status": "ok",
-    "service": "ai-commerce-agent-api"
-  }
-  ```
-- **Tests**:
-  1. `Status code is 200`
-  2. `Response contains status = ok`
-  3. `Response contains service = ai-commerce-agent-api`
-
-### B. Database Health Check
-
-- **Method**: `GET`
-- **URL**: `http://127.0.0.1:8000/api/health/database`
-- **Expected Status**: `200 OK`
-- **Expected Response**:
-  ```json
-  {
-    "status": "ok",
-    "database": "connected"
-  }
-  ```
-- **Tests**:
-  1. `Status code is 200`
-  2. `Response contains status = ok`
-  3. `Response contains database = connected`
+| # | Request Name | Method | URL | Description & Assertions |
+|---|---|---|---|---|
+| 1 | **Health Check** | `GET` | `/api/health` | Status 200, status = "ok", service = "ai-commerce-agent-api" |
+| 2 | **Database Health Check** | `GET` | `/api/health/database` | Status 200, status = "ok", database = "connected" |
+| 3 | **List Products (Default)** | `GET` | `/api/products` | Status 200, returns pagination object (`items`, `total`, `page`, `page_size`) |
+| 4 | **Get Product Detail** | `GET` | `/api/products/:id` | Status 200, complete schema (`name`, `price`, `attributes`, `sku`, etc.) |
+| 5 | **Filter Products by Category** | `GET` | `/api/products?category=Audio` | Status 200, all items match `category = Audio` |
+| 6 | **Filter Products by Price Range** | `GET` | `/api/products?min_price=5000&max_price=20000` | Status 200, all items within [5000, 20000] |
+| 7 | **Search Products** | `GET` | `/api/products?search=headphone` | Status 200, items match keyword in name/description |
+| 8 | **Filter Available Products** | `GET` | `/api/products?available=true` | Status 200, all items active and in-stock (`inventory > 0`) |
+| 9 | **Paginate Products** | `GET` | `/api/products?page=1&page_size=5` | Status 200, returns exactly 5 items for page 1 |
+| 10 | **Get Product Detail (404)** | `GET` | `/api/products/00000000-0000-0000-0000-000000000000` | Status 404, detail = "Product not found" |

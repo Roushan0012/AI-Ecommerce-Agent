@@ -5,6 +5,13 @@
 		"description": "Postman API Collection for Razorpay AI Buildathon Track 01 - AI Commerce Agent",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
+	"variable": [
+		{
+			"key": "first_product_id",
+			"value": "0d7df0d6-74ab-4242-81db-b87ea0ee89ac",
+			"type": "string"
+		}
+	],
 	"item": [
 		{
 			"name": "Health Check",
@@ -98,6 +105,414 @@
 					]
 				},
 				"description": "Database health check endpoint verifying Supabase PostgreSQL connectivity."
+			},
+			"response": []
+		},
+		{
+			"name": "List Products (Default)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Response contains pagination fields\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"items\");",
+							"    pm.expect(jsonData).to.have.property(\"total\");",
+							"    pm.expect(jsonData).to.have.property(\"page\");",
+							"    pm.expect(jsonData).to.have.property(\"page_size\");",
+							"    pm.expect(jsonData.total).to.be.at.least(12);",
+							"});",
+							"",
+							"if (jsonData.items && jsonData.items.length > 0) {",
+							"    pm.collectionVariables.set(\"first_product_id\", jsonData.items[0].id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products"
+					]
+				},
+				"description": "Fetch list of active products with default pagination."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Product Detail",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Product detail structure is complete\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"id\");",
+							"    pm.expect(jsonData).to.have.property(\"name\");",
+							"    pm.expect(jsonData).to.have.property(\"sku\");",
+							"    pm.expect(jsonData).to.have.property(\"price\");",
+							"    pm.expect(jsonData).to.have.property(\"currency\");",
+							"    pm.expect(jsonData).to.have.property(\"inventory\");",
+							"    pm.expect(jsonData).to.have.property(\"attributes\");",
+							"    pm.expect(jsonData).to.have.property(\"is_active\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products/{{first_product_id}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products",
+						"{{first_product_id}}"
+					]
+				},
+				"description": "Fetch detailed information for a single product by UUID."
+			},
+			"response": []
+		},
+		{
+			"name": "Filter Products by Category (Audio)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"All returned items belong to Audio category\", function () {",
+							"    pm.expect(jsonData.total).to.be.at.least(1);",
+							"    jsonData.items.forEach(function(item) {",
+							"        pm.expect(item.category).to.eql(\"Audio\");",
+							"    });",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products?category=Audio",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "Audio"
+						}
+					]
+				},
+				"description": "Filter products belonging to the Audio category."
+			},
+			"response": []
+		},
+		{
+			"name": "Filter Products by Price Range",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"All items are within price range 5000 to 20000\", function () {",
+							"    jsonData.items.forEach(function(item) {",
+							"        var price = parseFloat(item.price);",
+							"        pm.expect(price).to.be.at.least(5000);",
+							"        pm.expect(price).to.be.at.most(20000);",
+							"    });",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products?min_price=5000&max_price=20000",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products"
+					],
+					"query": [
+						{
+							"key": "min_price",
+							"value": "5000"
+						},
+						{
+							"key": "max_price",
+							"value": "20000"
+						}
+					]
+				},
+				"description": "Filter products within min_price and max_price bounds."
+			},
+			"response": []
+		},
+		{
+			"name": "Search Products (headphone)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Search results match keyword\", function () {",
+							"    pm.expect(jsonData.total).to.be.at.least(1);",
+							"    var found = jsonData.items.some(function(item) {",
+							"        return item.name.toLowerCase().includes(\"headphone\") || ",
+							"               (item.description && item.description.toLowerCase().includes(\"headphone\"));",
+							"    });",
+							"    pm.expect(found).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products?search=headphone",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products"
+					],
+					"query": [
+						{
+							"key": "search",
+							"value": "headphone"
+						}
+					]
+				},
+				"description": "Search products by keyword in name or description."
+			},
+			"response": []
+		},
+		{
+			"name": "Filter Available Products",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"All returned products are active and in stock\", function () {",
+							"    jsonData.items.forEach(function(item) {",
+							"        pm.expect(item.is_active).to.be.true;",
+							"        pm.expect(item.inventory).to.be.above(0);",
+							"    });",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products?available=true",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products"
+					],
+					"query": [
+						{
+							"key": "available",
+							"value": "true"
+						}
+					]
+				},
+				"description": "Filter products to only return active items with positive inventory."
+			},
+			"response": []
+		},
+		{
+			"name": "Paginate Products (page=1, page_size=5)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Page size matches requested limit\", function () {",
+							"    pm.expect(jsonData.page).to.eql(1);",
+							"    pm.expect(jsonData.page_size).to.eql(5);",
+							"    pm.expect(jsonData.items.length).to.eql(5);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products?page=1&page_size=5",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1"
+						},
+						{
+							"key": "page_size",
+							"value": "5"
+						}
+					]
+				},
+				"description": "Paginate product catalog with page and page_size bounds."
+			},
+			"response": []
+		},
+		{
+			"name": "Get Product Detail (Nonexistent 404)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Detail message indicates product not found\", function () {",
+							"    pm.expect(jsonData.detail).to.eql(\"Product not found\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/products/00000000-0000-0000-0000-000000000000",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"products",
+						"00000000-0000-0000-0000-000000000000"
+					]
+				},
+				"description": "Verify 404 Not Found is returned for non-existent product UUID."
 			},
 			"response": []
 		}
