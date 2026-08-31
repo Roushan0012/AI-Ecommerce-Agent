@@ -1,7 +1,13 @@
 from typing import Generator
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
 from app.core.config import settings
+
+
+class Base(DeclarativeBase):
+    """Base class for all SQLAlchemy declarative models."""
+    pass
+
 
 _engine = None
 _SessionLocal = None
