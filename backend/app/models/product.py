@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
+    from app.models.cart_item import CartItem
     from app.models.merchant import Merchant
     from app.models.order_item import OrderItem
 
@@ -70,6 +71,9 @@ class Product(Base):
     merchant: Mapped["Merchant"] = relationship("Merchant", back_populates="products")
     order_items: Mapped[List["OrderItem"]] = relationship(
         "OrderItem", back_populates="product"
+    )
+    cart_items: Mapped[List["CartItem"]] = relationship(
+        "CartItem", back_populates="product"
     )
 
     def __repr__(self) -> str:

@@ -61,3 +61,12 @@ npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 | 12 | **Filter Available Products** | `GET` | `/api/products?available=true` | Status 200, all items active and in-stock (`inventory > 0`) |
 | 13 | **Paginate Products** | `GET` | `/api/products?page=1&page_size=5` | Status 200, returns exactly 5 items for page 1 |
 | 14 | **Get Product Detail (404)** | `GET` | `/api/products/00000000-0000-0000-0000-000000000000` | Status 404, detail = "Product not found" |
+| 15 | **Cart - Create or Get Cart** | `POST` | `/api/cart` | Status 200, creates or retrieves active cart for customer |
+| 16 | **Cart - Add Item** | `POST` | `/api/cart/:customer_id/items` | Status 200, adds item with authoritative server price and validates inventory |
+| 17 | **Cart - Get Active Cart** | `GET` | `/api/cart/:customer_id` | Status 200, retrieves active cart with items and recalculated totals |
+| 18 | **Cart - Update Item Quantity** | `PUT` | `/api/cart/:customer_id/items/:product_id` | Status 200, updates quantity, revalidates stock, and updates subtotal |
+| 19 | **Cart - Remove Item** | `DELETE` | `/api/cart/:customer_id/items/:product_id` | Status 200, removes item and recalculates cart totals |
+| 20 | **Cart - Add Product For Checkout** | `POST` | `/api/cart/:customer_id/items` | Status 200, primes active cart for order creation |
+| 21 | **Orders - Create Order from Cart** | `POST` | `/api/orders` | Status 201, converts active cart into `pending_payment` order with price snapshots |
+| 22 | **Orders - List Customer Orders** | `GET` | `/api/orders/:customer_id` | Status 200, lists all customer orders sorted descending |
+| 23 | **Orders - Get Single Order Detail** | `GET` | `/api/orders/:customer_id/:order_id` | Status 200, returns order detail matching customer and order ID |

@@ -5,15 +5,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.core.database import Base
-from app.models import Merchant, Product, Order, OrderItem
+from app.models import Cart, CartItem, Merchant, Order, OrderItem, Product
 
 
 def test_models_importable():
-    """Verify all four models are imported properly."""
+    """Verify all six models are imported properly."""
     assert Merchant is not None
     assert Product is not None
     assert Order is not None
     assert OrderItem is not None
+    assert Cart is not None
+    assert CartItem is not None
 
 
 def test_merchant_model_construction():
@@ -59,6 +61,49 @@ def test_product_model_construction():
     assert "products" == Product.__tablename__
 
 
+def test_cart_model_construction():
+    """Verify Cart instance construction and fields."""
+    cart_id = uuid.uuid4()
+    customer_id = uuid.uuid4()
+    cart = Cart(
+        id=cart_id,
+        customer_id=customer_id,
+        status="active",
+        currency="INR",
+        subtotal=Decimal("2499.00"),
+        discount=Decimal("0.00"),
+        total=Decimal("2499.00"),
+    )
+    assert cart.id == cart_id
+    assert cart.customer_id == customer_id
+    assert cart.status == "active"
+    assert cart.subtotal == Decimal("2499.00")
+    assert cart.total == Decimal("2499.00")
+    assert "carts" == Cart.__tablename__
+
+
+def test_cart_item_model_construction():
+    """Verify CartItem instance construction and fields."""
+    item_id = uuid.uuid4()
+    cart_id = uuid.uuid4()
+    product_id = uuid.uuid4()
+    item = CartItem(
+        id=item_id,
+        cart_id=cart_id,
+        product_id=product_id,
+        quantity=2,
+        unit_price=Decimal("1249.50"),
+        total_price=Decimal("2499.00"),
+    )
+    assert item.id == item_id
+    assert item.cart_id == cart_id
+    assert item.product_id == product_id
+    assert item.quantity == 2
+    assert item.unit_price == Decimal("1249.50")
+    assert item.total_price == Decimal("2499.00")
+    assert "cart_items" == CartItem.__tablename__
+
+
 def test_order_model_construction():
     """Verify Order instance construction and fields."""
     order_id = uuid.uuid4()
@@ -68,16 +113,17 @@ def test_order_model_construction():
         id=order_id,
         merchant_id=merchant_id,
         customer_id=customer_id,
-        status="created",
+        status="pending_payment",
         currency="INR",
         subtotal=Decimal("4999.00"),
+        discount=Decimal("0.00"),
         total=Decimal("4999.00"),
         razorpay_order_id="order_rp_123456",
     )
     assert order.id == order_id
     assert order.merchant_id == merchant_id
     assert order.customer_id == customer_id
-    assert order.status == "created"
+    assert order.status == "pending_payment"
     assert order.currency == "INR"
     assert order.subtotal == Decimal("4999.00")
     assert order.total == Decimal("4999.00")
@@ -94,6 +140,8 @@ def test_order_item_model_construction():
         id=item_id,
         order_id=order_id,
         product_id=product_id,
+        product_name="Pro Wireless Earbuds",
+        sku="SKU-AUD-01",
         quantity=2,
         unit_price=Decimal("2499.50"),
         total_price=Decimal("4999.00"),
@@ -101,6 +149,8 @@ def test_order_item_model_construction():
     assert item.id == item_id
     assert item.order_id == order_id
     assert item.product_id == product_id
+    assert item.product_name == "Pro Wireless Earbuds"
+    assert item.sku == "SKU-AUD-01"
     assert item.quantity == 2
     assert item.unit_price == Decimal("2499.50")
     assert item.total_price == Decimal("4999.00")
@@ -111,10 +161,20 @@ def test_model_relationships():
     """Verify bidirectional ORM relationships are properly configured."""
     merchant = Merchant(name="Store")
     product = Product(name="Item", price=Decimal("100.00"), sku="SKU1")
-    order = Order(merchant=merchant, total=Decimal("100.00"))
+    cart = Cart(customer_id=uuid.uuid4(), total=Decimal("100.00"))
+    cart_item = CartItem(
+        cart=cart,
+        product=product,
+        quantity=1,
+        unit_price=Decimal("100.00"),
+        total_price=Decimal("100.00"),
+    )
+    order = Order(merchant=merchant, customer_id=cart.customer_id, cart=cart, total=Decimal("100.00"))
     order_item = OrderItem(
         product=product,
         order=order,
+        product_name=product.name,
+        sku=product.sku,
         quantity=1,
         unit_price=Decimal("100.00"),
         total_price=Decimal("100.00"),
@@ -128,10 +188,15 @@ def test_model_relationships():
     assert product.merchant == merchant
     assert order.merchant == merchant
 
+    # Cart -> CartItems
+    assert cart_item in cart.items
+    assert cart_item.cart == cart
+
     # Order -> OrderItems & Product -> OrderItems
     assert order_item in order.items
     assert order_item.order == order
     assert order_item.product == product
+    assert order.cart == cart
 
 
 def test_model_table_constraints():
@@ -142,9 +207,23 @@ def test_model_table_constraints():
     assert "chk_products_price_non_negative" in product_constraints
     assert "chk_products_inventory_non_negative" in product_constraints
 
+    # Cart constraints
+    cart_constraints = {c.name for c in Cart.__table__.constraints}
+    assert "chk_carts_subtotal_non_negative" in cart_constraints
+    assert "chk_carts_discount_non_negative" in cart_constraints
+    assert "chk_carts_total_non_negative" in cart_constraints
+
+    # CartItem constraints
+    cart_item_constraints = {c.name for c in CartItem.__table__.constraints}
+    assert "uq_cart_items_cart_product" in cart_item_constraints
+    assert "chk_cart_items_quantity_positive" in cart_item_constraints
+    assert "chk_cart_items_unit_price_non_negative" in cart_item_constraints
+    assert "chk_cart_items_total_price_non_negative" in cart_item_constraints
+
     # Order constraints
     order_constraints = {c.name for c in Order.__table__.constraints}
     assert "chk_orders_subtotal_non_negative" in order_constraints
+    assert "chk_orders_discount_non_negative" in order_constraints
     assert "chk_orders_total_non_negative" in order_constraints
 
     # OrderItem constraints
@@ -191,7 +270,7 @@ def test_database_constraint_rejections():
             session.commit()
         session.rollback()
 
-        # 3. Reject non-positive quantity (0)
+        # 3. Reject non-positive quantity (0) in OrderItem
         valid_product = Product(
             id=uuid.uuid4(),
             merchant_id=merchant.id,
@@ -203,6 +282,7 @@ def test_database_constraint_rejections():
         order = Order(
             id=uuid.uuid4(),
             merchant_id=merchant.id,
+            customer_id=uuid.uuid4(),
             total=Decimal("100.00"),
         )
         session.add_all([valid_product, order])
@@ -213,6 +293,8 @@ def test_database_constraint_rejections():
                 id=uuid.uuid4(),
                 order_id=order.id,
                 product_id=valid_product.id,
+                product_name="Valid Item",
+                sku="SKU-VALID",
                 quantity=0,
                 unit_price=Decimal("100.00"),
                 total_price=Decimal("0.00"),

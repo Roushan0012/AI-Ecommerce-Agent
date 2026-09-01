@@ -8,7 +8,17 @@
 	"variable": [
 		{
 			"key": "first_product_id",
-			"value": "0d7df0d6-74ab-4242-81db-b87ea0ee89ac",
+			"value": "465206d3-bd4d-4f9f-b705-010670ab4006",
+			"type": "string"
+		},
+		{
+			"key": "customer_id",
+			"value": "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+			"type": "string"
+		},
+		{
+			"key": "created_order_id",
+			"value": "",
 			"type": "string"
 		}
 	],
@@ -763,6 +773,476 @@
 					]
 				},
 				"description": "Verify 404 Not Found is returned for non-existent product UUID."
+			},
+			"response": []
+		},
+		{
+			"name": "Cart - Create or Get Cart",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Response contains cart structure\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"id\");",
+							"    pm.expect(jsonData).to.have.property(\"customer_id\");",
+							"    pm.expect(jsonData.status).to.eql(\"active\");",
+							"    pm.expect(jsonData.currency).to.eql(\"INR\");",
+							"    pm.expect(jsonData).to.have.property(\"items\");",
+							"    pm.expect(jsonData).to.have.property(\"item_count\");",
+							"    pm.expect(jsonData).to.have.property(\"subtotal\");",
+							"    pm.expect(jsonData).to.have.property(\"total\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"customer_id\": \"{{customer_id}}\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/cart",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"cart"
+					]
+				},
+				"description": "Create or retrieve active customer cart."
+			},
+			"response": []
+		},
+		{
+			"name": "Cart - Add Item",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Item added to cart with authoritative server price\", function () {",
+							"    pm.expect(jsonData.item_count).to.be.at.least(1);",
+							"    pm.expect(jsonData.items.length).to.be.at.least(1);",
+							"    var item = jsonData.items.find(i => i.product_id === pm.collectionVariables.get(\"first_product_id\"));",
+							"    pm.expect(item).to.not.be.undefined;",
+							"    pm.expect(parseFloat(item.unit_price)).to.be.above(0);",
+							"    pm.expect(parseFloat(jsonData.subtotal)).to.be.above(0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"product_id\": \"{{first_product_id}}\",\n  \"quantity\": 2\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"cart",
+						"{{customer_id}}",
+						"items"
+					]
+				},
+				"description": "Add product to customer active cart."
+			},
+			"response": []
+		},
+		{
+			"name": "Cart - Get Active Cart",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Active cart retrieved with items\", function () {",
+							"    pm.expect(jsonData.status).to.eql(\"active\");",
+							"    pm.expect(jsonData.items.length).to.be.at.least(1);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"cart",
+						"{{customer_id}}"
+					]
+				},
+				"description": "Retrieve customer active cart."
+			},
+			"response": []
+		},
+		{
+			"name": "Cart - Update Item Quantity",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Item quantity updated to 3 and subtotal recalculated\", function () {",
+							"    var item = jsonData.items.find(i => i.product_id === pm.collectionVariables.get(\"first_product_id\"));",
+							"    pm.expect(item.quantity).to.eql(3);",
+							"    var expectedTotal = item.quantity * parseFloat(item.unit_price);",
+							"    pm.expect(parseFloat(item.total_price)).to.eql(expectedTotal);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"quantity\": 3\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items/{{first_product_id}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"cart",
+						"{{customer_id}}",
+						"items",
+						"{{first_product_id}}"
+					]
+				},
+				"description": "Update product quantity in cart."
+			},
+			"response": []
+		},
+		{
+			"name": "Cart - Remove Item",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Item removed and cart totals updated\", function () {",
+							"    pm.expect(jsonData.items.length).to.eql(0);",
+							"    pm.expect(parseFloat(jsonData.subtotal)).to.eql(0.0);",
+							"    pm.expect(parseFloat(jsonData.total)).to.eql(0.0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items/{{first_product_id}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"cart",
+						"{{customer_id}}",
+						"items",
+						"{{first_product_id}}"
+					]
+				},
+				"description": "Remove product from cart."
+			},
+			"response": []
+		},
+		{
+			"name": "Cart - Add Product For Checkout",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Cart is primed with 1 item for checkout\", function () {",
+							"    pm.expect(jsonData.items.length).to.eql(1);",
+							"    pm.expect(jsonData.item_count).to.eql(1);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"product_id\": \"{{first_product_id}}\",\n  \"quantity\": 1\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"cart",
+						"{{customer_id}}",
+						"items"
+					]
+				},
+				"description": "Add product to cart in preparation for order creation."
+			},
+			"response": []
+		},
+		{
+			"name": "Orders - Create Order from Cart",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Order created with pending_payment status and item snapshots\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"id\");",
+							"    pm.expect(jsonData.customer_id).to.eql(pm.collectionVariables.get(\"customer_id\"));",
+							"    pm.expect(jsonData.status).to.eql(\"pending_payment\");",
+							"    pm.expect(jsonData.currency).to.eql(\"INR\");",
+							"    pm.expect(jsonData.items.length).to.be.at.least(1);",
+							"    pm.expect(jsonData.items[0]).to.have.property(\"product_name\");",
+							"    pm.expect(jsonData.items[0]).to.have.property(\"sku\");",
+							"    pm.expect(parseFloat(jsonData.items[0].unit_price)).to.be.above(0);",
+							"    pm.expect(parseFloat(jsonData.total)).to.be.above(0);",
+							"    pm.collectionVariables.set(\"created_order_id\", jsonData.id);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"customer_id\": \"{{customer_id}}\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/orders",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"orders"
+					]
+				},
+				"description": "Atomically convert active cart into pending_payment Order."
+			},
+			"response": []
+		},
+		{
+			"name": "Orders - List Customer Orders",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Customer orders list contains the created order\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"items\");",
+							"    pm.expect(jsonData.total).to.be.at.least(1);",
+							"    var found = jsonData.items.some(o => o.id === pm.collectionVariables.get(\"created_order_id\"));",
+							"    pm.expect(found).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/orders/{{customer_id}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"orders",
+						"{{customer_id}}"
+					]
+				},
+				"description": "List all orders placed by customer."
+			},
+			"response": []
+		},
+		{
+			"name": "Orders - Get Single Order Detail",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Order detail matches requested order ID\", function () {",
+							"    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get(\"created_order_id\"));",
+							"    pm.expect(jsonData.customer_id).to.eql(pm.collectionVariables.get(\"customer_id\"));",
+							"    pm.expect(jsonData.status).to.eql(\"pending_payment\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/orders/{{customer_id}}/{{created_order_id}}",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"orders",
+						"{{customer_id}}",
+						"{{created_order_id}}"
+					]
+				},
+				"description": "Fetch detail of specific order belonging to customer."
 			},
 			"response": []
 		}

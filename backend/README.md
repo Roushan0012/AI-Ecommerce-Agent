@@ -9,29 +9,39 @@ backend/
 ├── app/
 │   ├── api/
 │   │   ├── agent.py
+│   │   ├── cart.py
+│   │   ├── orders.py
 │   │   └── products.py
 │   ├── core/
 │   │   ├── config.py
 │   │   ├── database.py
+│   │   ├── migrate.py
 │   │   ├── prompts.py
 │   │   └── seed.py
 │   ├── models/
+│   │   ├── cart.py
+│   │   ├── cart_item.py
 │   │   ├── merchant.py
 │   │   ├── product.py
 │   │   ├── order.py
 │   │   └── order_item.py
 │   ├── schemas/
 │   │   ├── agent.py
+│   │   ├── cart.py
 │   │   ├── growth.py
+│   │   ├── order.py
 │   │   └── product.py
 │   ├── services/
 │   │   ├── ai_agent.py
+│   │   ├── cart_service.py
 │   │   ├── growth_service.py
+│   │   ├── order_service.py
 │   │   ├── product_service.py
 │   │   └── recommendation_service.py
 │   └── main.py
 ├── tests/
 │   ├── test_agent_api.py
+│   ├── test_cart_order_api.py
 │   ├── test_database_health.py
 │   ├── test_growth_api.py
 │   ├── test_health.py
@@ -88,13 +98,19 @@ python -m app.core.seed
 
 > **Note**: The seed script is completely **idempotent**. Running it multiple times safely updates existing products by SKU without creating duplicates.
 
-### 5. Run Tests
+### 5. Run Database Migrations
+
+```bash
+python -m app.core.migrate
+```
+
+### 6. Run Tests
 
 ```bash
 pytest
 ```
 
-### 6. Run Development Server
+### 7. Run Development Server
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -108,119 +124,80 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `GET /api/health` — Basic service status
 - `GET /api/health/database` — Supabase PostgreSQL database connectivity check
 
-### 2. AI Agent Endpoints
+### 2. Cart APIs
+
+#### `POST /api/cart`
+Create or retrieve the active cart for a customer.
+
+**Example Request:**
+```bash
+curl -X POST "http://localhost:8000/api/cart" \
+  -H "Content-Type: application/json" \
+  -d '{"customer_id": "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c"}'
+```
+
+#### `GET /api/cart/{customer_id}`
+Retrieve the customer's current active cart with line items, quantities, and server-side calculated totals.
+
+#### `POST /api/cart/{customer_id}/items`
+Add a product to the active cart.
+- Authoritative product price is fetched server-side from the database. Client cannot supply `unit_price`.
+- If the item already exists in the cart, its quantity is incremented without creating duplicate rows.
+- Revalidates `quantity <= product.inventory`.
+
+**Example Request:**
+```bash
+curl -X POST "http://localhost:8000/api/cart/c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c/items" \
+  -H "Content-Type: application/json" \
+  -d '{"product_id": "465206d3-bd4d-4f9f-b705-010670ab4006", "quantity": 2}'
+```
+
+#### `PUT /api/cart/{customer_id}/items/{product_id}`
+Update item quantity in cart. Revalidates stock and recalculates line totals and cart totals.
+
+#### `DELETE /api/cart/{customer_id}/items/{product_id}`
+Remove an item from active cart and recalculate subtotal and total.
+
+---
+
+### 3. Order APIs
+
+#### `POST /api/orders`
+Create an order by converting the customer's active cart.
+- **Atomic Transaction**: Re-verifies all products are active and in stock, re-reads authoritative unit prices, calculates total server-side, creates `Order` with `status: "pending_payment"`, creates `OrderItem` snapshots (storing product name, sku, and price), and marks the cart status as `"converted"`.
+
+**Example Request:**
+```bash
+curl -X POST "http://localhost:8000/api/orders" \
+  -H "Content-Type: application/json" \
+  -d '{"customer_id": "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c"}'
+```
+
+#### `GET /api/orders/{customer_id}`
+List all orders placed by the customer, sorted by creation date descending.
+
+#### `GET /api/orders/{customer_id}/{order_id}`
+Retrieve details for a specific order. Rejects access if the order does not belong to the requested customer.
+
+---
+
+### 4. AI Agent Endpoints
 
 #### `POST /api/agent/understand`
 Converts customer natural language shopping requests into structured shopping intent without performing catalog search.
 
-**Example Request:**
-```bash
-curl -X POST "http://localhost:8000/api/agent/understand" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "I need wireless headphones under ₹5000"}'
-```
-
 #### `POST /api/agent/search`
-End-to-end AI agent product discovery:
-1. Understands natural language customer message.
-2. Extracts structured shopping intent (`search_query`, `category`, `price bounds`, `availability`).
-3. Queries Supabase PostgreSQL catalog with translated filters.
-4. Returns conversational summary, structured intent, and matching product items with pagination.
-
-**Example Request:**
-```bash
-curl -X POST "http://localhost:8000/api/agent/search" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Show me wireless earbuds under ₹5000"}'
-```
+End-to-end AI agent product discovery translating natural language queries into filtered catalog search results.
 
 #### `POST /api/agent/recommend`
-AI Recommendation Engine endpoint that scores and ranks product candidates using multi-factor deterministic scoring:
-- **Hard Constraints**: Products out-of-stock, inactive, or exceeding budget are excluded (score 0.0).
-- **Category Alignment (30%)**: Matches category from extracted intent.
-- **Keyword & Attribute Relevance (35%)**: Token matches across title, description, and JSONB attributes.
-- **Price Fitness (20%)**: Proximity to requested budget without constraint violation.
-- **Inventory Health (15%)**: Stock depth weighting.
-
-**Example Request:**
-```bash
-curl -X POST "http://localhost:8000/api/agent/recommend" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "I need wireless headphones under ₹5000 for travelling"}'
-```
+AI Recommendation Engine endpoint scoring and ranking product candidates using multi-factor deterministic scoring.
 
 #### `POST /api/agent/growth`
-AI Growth Engine endpoint that generates **Upsell** and **Cross-sell** opportunities:
-- **Primary Products**: Identifies top product matches corresponding to customer query.
-- **Upsell Opportunities**:
-  - Recommends higher-tier products in the same category offering improved specifications (e.g. 65W charger $\rightarrow$ 100W multi-port desktop station, or earbuds $\rightarrow$ flagship ANC headphones).
-  - Strictly respects explicit maximum budget constraints.
-  - Generates clear, explainable reasons contrasting upgraded specifications and price differences.
-- **Cross-sell Opportunities**:
-  - Recommends complementary companion accessories (e.g. Keyboards $\rightarrow$ Ergonomic Mouse, Desk Mat, USB-C Hub; Backpack $\rightarrow$ Cable Organizer Pouch, Stainless Flask).
-  - Deterministic relationship mapping across categories and functional roles.
-- **Hard Constraints**:
-  - Excludes inactive products (`is_active = False`).
-  - Excludes out-of-stock products (`inventory <= 0`).
-  - Excludes products exceeding explicitly defined max budget.
-  - Excludes duplicates and never recommends the primary product as its own upsell/cross-sell.
+AI Growth Engine endpoint generating **Upsell** and **Cross-sell** opportunities.
 
-**Example Request:**
-```bash
-curl -X POST "http://localhost:8000/api/agent/growth" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Show me mechanical keyboards"}'
-```
+---
 
-**Example Response:**
-```json
-{
-  "message": "I found suitable products and 3 useful upgrade and accessory options.",
-  "intent": {
-    "intent": "product_search",
-    "search_query": "mechanical keyboard",
-    "category": "Computer Accessories",
-    "min_price": null,
-    "max_price": null,
-    "currency": "INR",
-    "availability_required": true
-  },
-  "primary_products": [
-    {
-      "id": "2eb0746e-1d37-4d92-bb8f-e18e77519ea8",
-      "name": "ErgoPro Mechanical Wireless Keyboard",
-      "category": "Computer Accessories",
-      "price": "7999.00",
-      "inventory": 35,
-      "sku": "ACC-EP-KB01",
-      "is_active": true
-    }
-  ],
-  "upsell": [],
-  "cross_sell": [
-    {
-      "type": "cross_sell",
-      "product": {
-        "id": "e2a0f8bf-1044-4861-bb38-5f5647587efc",
-        "name": "PrecisionGlide Ergonomic Wireless Mouse",
-        "category": "Computer Accessories",
-        "price": "2499.00",
-        "inventory": 90,
-        "sku": "ACC-PG-MS02"
-      },
-      "primary_product_id": "2eb0746e-1d37-4d92-bb8f-e18e77519ea8",
-      "primary_product_name": "ErgoPro Mechanical Wireless Keyboard",
-      "score": 0.92,
-      "reason": "An ergonomic wireless mouse is the ideal productivity companion to pair with your ErgoPro Mechanical Wireless Keyboard."
-    }
-  ],
-  "total": 1,
-  "page": 1,
-  "page_size": 10
-}
-```
-
-### 3. Product Discovery Endpoints
+### 5. Product Discovery Endpoints
 
 #### `GET /api/products`
 List active products with filtering, search, and pagination.
