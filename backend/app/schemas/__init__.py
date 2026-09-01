@@ -8,6 +8,11 @@ from app.schemas.agent import (
     RecommendedProductItem,
     ShoppingIntent,
 )
+from app.schemas.audit import (
+    AuditEventType,
+    AuditLogListResponse,
+    AuditLogResponse,
+)
 from app.schemas.cart import (
     CartCreateRequest,
     CartItemCreateRequest,
@@ -62,4 +67,7 @@ __all__ = [
     "OrderListResponse",
     "CreatePaymentOrderRequest",
     "PaymentOrderResponse",
+    "AuditEventType",
+    "AuditLogResponse",
+    "AuditLogListResponse",
 ]

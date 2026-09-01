@@ -132,6 +132,21 @@ class CartService:
         cls.recalculate_cart_totals(db, cart)
         db.commit()
 
+        try:
+            from app.services.audit_service import audit_service
+            audit_service.record_event(
+                db=db,
+                event_type="CART_UPDATED",
+                customer_id=customer_id,
+                action="add_item_to_cart",
+                cart_id=cart.id,
+                payload={"product_id": str(product_id), "quantity": quantity},
+                result={"cart_subtotal": str(cart.subtotal), "cart_total": str(cart.total)},
+                status="success",
+            )
+        except Exception:
+            pass
+
         return cls.get_or_create_active_cart(db, customer_id)
 
     @classmethod
@@ -185,6 +200,21 @@ class CartService:
         cls.recalculate_cart_totals(db, cart)
         db.commit()
 
+        try:
+            from app.services.audit_service import audit_service
+            audit_service.record_event(
+                db=db,
+                event_type="CART_UPDATED",
+                customer_id=customer_id,
+                action="update_item_quantity",
+                cart_id=cart.id,
+                payload={"product_id": str(product_id), "quantity": quantity},
+                result={"cart_subtotal": str(cart.subtotal), "cart_total": str(cart.total)},
+                status="success",
+            )
+        except Exception:
+            pass
+
         return cls.get_or_create_active_cart(db, customer_id)
 
     @classmethod
@@ -217,6 +247,21 @@ class CartService:
 
         cls.recalculate_cart_totals(db, cart)
         db.commit()
+
+        try:
+            from app.services.audit_service import audit_service
+            audit_service.record_event(
+                db=db,
+                event_type="CART_UPDATED",
+                customer_id=customer_id,
+                action="remove_item_from_cart",
+                cart_id=cart.id,
+                payload={"product_id": str(product_id)},
+                result={"cart_subtotal": str(cart.subtotal), "cart_total": str(cart.total)},
+                status="success",
+            )
+        except Exception:
+            pass
 
         return cls.get_or_create_active_cart(db, customer_id)
 

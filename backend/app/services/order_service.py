@@ -148,6 +148,20 @@ class OrderService:
                 .where(Order.id == order_id)
             )
             created_order = db.execute(refresh_stmt).scalar_one()
+
+            from app.services.audit_service import audit_service
+            audit_service.record_event(
+                db=db,
+                event_type="ORDER_CREATED",
+                customer_id=customer_id,
+                action="create_order",
+                cart_id=cart.id,
+                order_id=created_order.id,
+                payload={"cart_id": str(cart.id), "item_count": len(order_items_to_create)},
+                result={"order_id": str(created_order.id), "total": str(created_order.total), "status": created_order.status},
+                status="success",
+            )
+
             return created_order
 
         except HTTPException:

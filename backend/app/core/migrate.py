@@ -125,6 +125,42 @@ POSTGRES_MIGRATION_STATEMENTS = [
         "Create index ix_payments_status",
         "CREATE INDEX IF NOT EXISTS ix_payments_status ON payments(status)",
     ),
+    (
+        "Create audit_logs table",
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id UUID PRIMARY KEY,
+            customer_id UUID,
+            session_id VARCHAR(255),
+            event_type VARCHAR(100) NOT NULL,
+            action VARCHAR(255),
+            payload JSONB,
+            result JSONB,
+            status VARCHAR(50) NOT NULL DEFAULT 'success',
+            error_message TEXT,
+            cart_id UUID,
+            order_id UUID,
+            payment_id UUID,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+        """,
+    ),
+    (
+        "Create index ix_audit_logs_customer_id",
+        "CREATE INDEX IF NOT EXISTS ix_audit_logs_customer_id ON audit_logs(customer_id)",
+    ),
+    (
+        "Create index ix_audit_logs_session_id",
+        "CREATE INDEX IF NOT EXISTS ix_audit_logs_session_id ON audit_logs(session_id)",
+    ),
+    (
+        "Create index ix_audit_logs_event_type",
+        "CREATE INDEX IF NOT EXISTS ix_audit_logs_event_type ON audit_logs(event_type)",
+    ),
+    (
+        "Create index ix_audit_logs_created_at",
+        "CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs(created_at)",
+    ),
 ]
 
 

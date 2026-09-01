@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.agent import router as agent_router
+from app.api.audit import router as audit_router
 from app.api.cart import router as cart_router
 from app.api.orders import router as orders_router
 from app.api.payments import router as payments_router
@@ -35,6 +36,7 @@ app.include_router(agent_router)
 app.include_router(cart_router)
 app.include_router(orders_router)
 app.include_router(payments_router)
+app.include_router(audit_router)
 
 
 @app.get("/api/health")

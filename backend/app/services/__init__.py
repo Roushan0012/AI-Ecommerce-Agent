@@ -3,6 +3,7 @@ from app.services.agent_guardrails import (
     agent_guardrail_service,
 )
 from app.services.ai_agent import AIAgentService, ai_agent_service
+from app.services.audit_service import AuditService, audit_service
 from app.services.cart_service import CartService, cart_service
 from app.services.growth_service import GrowthRecommendationService, growth_service
 from app.services.order_service import OrderService, order_service
@@ -33,4 +34,6 @@ __all__ = [
     "payment_service",
     "AgentGuardrailService",
     "agent_guardrail_service",
+    "AuditService",
+    "audit_service",
 ]

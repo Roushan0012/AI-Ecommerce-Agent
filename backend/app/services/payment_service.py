@@ -103,6 +103,19 @@ class PaymentService:
         )
         key_id = razorpay_service.get_public_key_id()
 
+        from app.services.audit_service import audit_service
+        audit_service.record_event(
+            db=db,
+            event_type="PAYMENT_EVENT",
+            customer_id=order.customer_id,
+            action="create_payment_order",
+            order_id=order.id,
+            payment_id=payment.id,
+            payload={"order_id": str(order.id), "amount": str(payment.amount), "currency": payment.currency},
+            result={"payment_id": str(payment.id), "razorpay_order_id": razorpay_order_id, "status": payment.status},
+            status="success",
+        )
+
         return PaymentOrderResponse(
             payment_id=payment.id,
             order_id=order.id,
@@ -191,6 +204,8 @@ class PaymentService:
             event_amount = payment_entity.get("amount") or order_entity.get("amount")
             event_currency = payment_entity.get("currency") or order_entity.get("currency") or "INR"
 
+            from app.services.audit_service import audit_service
+
             # Reconcile Currency
             if payment and event_currency.upper() != payment.currency.upper():
                 logger.error(
@@ -198,6 +213,17 @@ class PaymentService:
                 )
                 payment.status = "failed"
                 db.commit()
+                audit_service.record_event(
+                    db=db,
+                    event_type="SECURITY_VIOLATION",
+                    customer_id=order.customer_id if order else None,
+                    action="webhook_currency_mismatch",
+                    order_id=order.id if order else None,
+                    payment_id=payment.id,
+                    payload={"expected_currency": payment.currency, "received_currency": event_currency},
+                    status="rejected",
+                    error_message=f"Currency mismatch: expected {payment.currency}, received {event_currency}",
+                )
                 return {
                     "status": "error",
                     "event": event,
@@ -213,6 +239,17 @@ class PaymentService:
                     )
                     payment.status = "failed"
                     db.commit()
+                    audit_service.record_event(
+                        db=db,
+                        event_type="SECURITY_VIOLATION",
+                        customer_id=order.customer_id if order else None,
+                        action="webhook_amount_mismatch",
+                        order_id=order.id if order else None,
+                        payment_id=payment.id,
+                        payload={"expected_amount_paise": expected_amount_in_paise, "received_amount_paise": event_amount},
+                        status="rejected",
+                        error_message=f"Amount mismatch: expected {expected_amount_in_paise} paise, received {event_amount} paise",
+                    )
                     return {
                         "status": "error",
                         "event": event,
@@ -234,6 +271,18 @@ class PaymentService:
                 db.refresh(payment)
             if order:
                 db.refresh(order)
+
+            audit_service.record_event(
+                db=db,
+                event_type="PAYMENT_EVENT",
+                customer_id=order.customer_id if order else None,
+                action="payment_verified_and_paid",
+                order_id=order.id if order else None,
+                payment_id=payment.id if payment else None,
+                payload={"event": event, "razorpay_order_id": razorpay_order_id, "razorpay_payment_id": razorpay_payment_id},
+                result={"order_status": "paid", "payment_status": "paid"},
+                status="success",
+            )
 
             logger.info(f"Payment successfully verified and order '{order.id if order else None}' marked as paid.")
             return {

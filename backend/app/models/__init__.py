@@ -1,3 +1,4 @@
+from app.models.audit_log import AuditLog
 from app.models.cart import Cart
 from app.models.cart_item import CartItem
 from app.models.merchant import Merchant
@@ -14,4 +15,5 @@ __all__ = [
     "Order",
     "OrderItem",
     "Payment",
+    "AuditLog",
 ]
