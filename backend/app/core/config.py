@@ -54,6 +54,10 @@ class Settings:
     def RAZORPAY_CURRENCY(self) -> str:
         return os.getenv("RAZORPAY_CURRENCY", "INR")
 
+    @property
+    def RAZORPAY_WEBHOOK_SECRET(self) -> str:
+        return os.getenv("RAZORPAY_WEBHOOK_SECRET", "test_webhook_secret_key_123")
+
     def get_database_url(self) -> str:
         url = self.DATABASE_URL
         if not url:

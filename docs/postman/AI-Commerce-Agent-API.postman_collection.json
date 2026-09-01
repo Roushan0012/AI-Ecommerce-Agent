@@ -1268,6 +1268,10 @@
 							"    pm.expect(jsonData.currency).to.eql(\"INR\");",
 							"    pm.expect(jsonData).to.have.property(\"key_id\");",
 							"    pm.expect(jsonData.status).to.eql(\"created\");",
+							"",
+							"    pm.collectionVariables.set(\"created_razorpay_order_id\", jsonData.razorpay_order_id);",
+							"    pm.collectionVariables.set(\"created_payment_id\", jsonData.payment_id);",
+							"    pm.collectionVariables.set(\"order_amount_paise\", jsonData.amount_in_paise);",
 							"});"
 						],
 						"type": "text/javascript"
@@ -1303,6 +1307,91 @@
 					]
 				},
 				"description": "Create a Razorpay Test Mode checkout order for an application order using authoritative backend amount."
+			},
+			"response": []
+		},
+		{
+			"name": "Payments - Razorpay Webhook Verification",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"var rzpOrderId = pm.collectionVariables.get(\"created_razorpay_order_id\") || \"order_test_sample\";",
+							"var amountPaise = pm.collectionVariables.get(\"order_amount_paise\") || 349900;",
+							"var rzpPaymentId = \"pay_test_\" + Math.random().toString(36).substring(2, 10);",
+							"var payload = {",
+							"    \"entity\": \"event\",",
+							"    \"event\": \"payment.captured\",",
+							"    \"payload\": {",
+							"        \"payment\": {",
+							"            \"entity\": {",
+							"                \"id\": rzpPaymentId,",
+							"                \"order_id\": rzpOrderId,",
+							"                \"amount\": amountPaise,",
+							"                \"currency\": \"INR\",",
+							"                \"status\": \"captured\"",
+							"            }",
+							"        }",
+							"    }",
+							"};",
+							"var rawBody = JSON.stringify(payload);",
+							"pm.request.body.raw = rawBody;",
+							"var secret = \"test_webhook_secret_key_123\";",
+							"var signature = CryptoJS.HmacSHA256(rawBody, secret).toString(CryptoJS.enc.Hex);",
+							"pm.request.headers.upsert({key: \"X-Razorpay-Signature\", value: signature});"
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Webhook successfully processed and order marked paid\", function () {",
+							"    pm.expect(jsonData.status).to.eql(\"ok\");",
+							"    pm.expect(jsonData.order_status).to.eql(\"paid\");",
+							"    pm.expect(jsonData.payment_status).to.eql(\"paid\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"entity\": \"event\",\n  \"event\": \"payment.captured\",\n  \"payload\": {}\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/payments/webhook",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"payments",
+						"webhook"
+					]
+				},
+				"description": "Secure Razorpay Webhook endpoint verifying HMAC-SHA256 signature and reconciling payment."
 			},
 			"response": []
 		}

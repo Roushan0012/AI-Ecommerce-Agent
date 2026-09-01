@@ -71,3 +71,4 @@ npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 | 22 | **Orders - List Customer Orders** | `GET` | `/api/orders/:customer_id` | Status 200, lists all customer orders sorted descending |
 | 23 | **Orders - Get Single Order Detail** | `GET` | `/api/orders/:customer_id/:order_id` | Status 200, returns order detail matching customer and order ID |
 | 24 | **Payments - Create Razorpay Test Order** | `POST` | `/api/payments/create-order` | Status 200, creates Razorpay Test Mode checkout order with authoritative amount in paise |
+| 25 | **Payments - Razorpay Webhook Verification** | `POST` | `/api/payments/webhook` | Status 200, verifies HMAC-SHA256 signature, validates payment/amount, marks order as paid |

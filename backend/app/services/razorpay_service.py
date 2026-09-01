@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import logging
 import time
 import uuid
@@ -17,6 +19,7 @@ class RazorpayService:
         self.key_id = settings.RAZORPAY_KEY_ID
         self.key_secret = settings.RAZORPAY_KEY_SECRET
         self.currency = settings.RAZORPAY_CURRENCY
+        self.webhook_secret = settings.RAZORPAY_WEBHOOK_SECRET
 
     def _get_client(self) -> Optional[razorpay.Client]:
         """Instantiates Razorpay Client if credentials are provided."""
@@ -31,6 +34,36 @@ class RazorpayService:
     def get_public_key_id(self) -> str:
         """Returns the public key ID required by frontend Razorpay Checkout."""
         return self.key_id or "rzp_test_placeholder"
+
+    def verify_webhook_signature(self, raw_body: bytes, signature: str) -> bool:
+        """
+        Verifies the HMAC-SHA256 signature of a Razorpay webhook payload against the webhook secret.
+        Uses constant-time comparison to prevent timing attacks.
+        """
+        if not signature or not self.webhook_secret:
+            return False
+
+        try:
+            expected_signature = hmac.new(
+                key=self.webhook_secret.encode("utf-8"),
+                msg=raw_body,
+                digestmod=hashlib.sha256,
+            ).hexdigest()
+            return hmac.compare_digest(expected_signature, signature)
+        except Exception as exc:
+            logger.error(f"Error verifying webhook signature: {exc}")
+            return False
+
+    def generate_webhook_signature(self, raw_body: bytes) -> str:
+        """
+        Generates HMAC-SHA256 signature for test execution and verification.
+        """
+        secret = self.webhook_secret or "test_webhook_secret_key_123"
+        return hmac.new(
+            key=secret.encode("utf-8"),
+            msg=raw_body,
+            digestmod=hashlib.sha256,
+        ).hexdigest()
 
     def create_razorpay_order(
         self,

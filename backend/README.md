@@ -45,6 +45,7 @@ backend/
 │   │   └── recommendation_service.py
 │   └── main.py
 ├── tests/
+│   ├── conftest.py
 │   ├── test_agent_api.py
 │   ├── test_cart_order_api.py
 │   ├── test_database_health.py
@@ -54,7 +55,8 @@ backend/
 │   ├── test_payment_api.py
 │   ├── test_products_api.py
 │   ├── test_recommendation_api.py
-│   └── test_seed.py
+│   ├── test_seed.py
+│   └── test_webhook_api.py
 ├── .env.example
 ├── requirements.txt
 └── README.md
@@ -87,13 +89,14 @@ Available environment variables:
 - `DATABASE_URL`: PostgreSQL connection string (e.g. `postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/postgres`)
 - `SUPABASE_URL`: Supabase project URL (optional)
 - `SUPABASE_PUBLISHABLE_KEY`: Supabase anon/publishable key (optional)
-- `AI_PROVIDER`: `mock` (default for deterministic offline tests) or `openai`, `groq`, `openrouter`
-- `AI_MODEL`: Model name (e.g. `gpt-4o-mini`, `llama-3.3-70b-versatile`)
-- `AI_API_KEY`: API key for external LLM provider (when using real provider)
+- `AI_PROVIDER`: `groq`, `openai`, `openrouter`, or `mock` (default for deterministic offline tests)
+- `AI_MODEL`: Model name (e.g. `openai/gpt-oss-120b`, `gpt-4o-mini`, `llama-3.3-70b-versatile`)
+- `AI_API_KEY`: API key for external LLM provider
 - `AI_BASE_URL`: Optional custom OpenAI-compatible API base URL
 - `RAZORPAY_KEY_ID`: Razorpay Test Mode Key ID (e.g. `rzp_test_...`)
 - `RAZORPAY_KEY_SECRET`: Razorpay Test Mode Key Secret
 - `RAZORPAY_CURRENCY`: `INR` (default)
+- `RAZORPAY_WEBHOOK_SECRET`: Razorpay Webhook Secret for HMAC-SHA256 verification
 
 > **Note**: `.env` contains sensitive credentials and is strictly excluded from Git.
 
@@ -104,8 +107,6 @@ Populate the demo merchant (`AI Commerce Demo Store`) and 14 realistic products 
 ```bash
 python -m app.core.seed
 ```
-
-> **Note**: The seed script is completely **idempotent**. Running it multiple times safely updates existing products by SKU without creating duplicates.
 
 ### 5. Run Database Migrations
 
@@ -133,7 +134,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - `GET /api/health` — Basic service status
 - `GET /api/health/database` — Supabase PostgreSQL database connectivity check
 
-### 2. Payment APIs (Step 2.10)
+### 2. Payment & Webhook APIs (Step 2.10 & 2.11)
 
 #### `POST /api/payments/create-order`
 Creates a Razorpay Test Mode checkout order for an existing application order:
@@ -143,12 +144,13 @@ Creates a Razorpay Test Mode checkout order for an existing application order:
 - **Persistence**: Persists `Payment` record and attaches `razorpay_order_id` to `Order`.
 - **Response**: Returns `payment_id`, `order_id`, `razorpay_order_id`, `amount`, `amount_in_paise`, `currency`, `key_id`, `status`.
 
-**Example Request:**
-```bash
-curl -X POST "http://localhost:8000/api/payments/create-order" \
-  -H "Content-Type: application/json" \
-  -d '{"order_id": "c96e09cf-3910-45ec-a4ea-c7e102f2f84f", "customer_id": "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c"}'
-```
+#### `POST /api/payments/webhook`
+Secure Razorpay Webhook handler:
+- **Signature Verification**: Verifies raw request body with HMAC-SHA256 signature using `RAZORPAY_WEBHOOK_SECRET` in constant time (`hmac.compare_digest`). Rejects invalid signatures with 400 Bad Request.
+- **Payment Reconciliation**: Verifies amount and currency against the authoritative internal database record.
+- **Status Updates**: Upon valid `payment.captured` or `order.paid` event, marks `Payment.status = "paid"` and `Order.status = "paid"`.
+- **Idempotency**: Duplicate webhook deliveries for already-paid orders are acknowledged safely without double updates.
+- **Failure Handling**: `payment.failed` event updates `Payment.status = "failed"` while keeping `Order.status = "pending_payment"`.
 
 ---
 
