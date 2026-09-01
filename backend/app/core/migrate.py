@@ -95,6 +95,36 @@ POSTGRES_MIGRATION_STATEMENTS = [
         "Add sku to order_items",
         "ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sku VARCHAR(100)",
     ),
+    # 5. Create payments table (Step 2.10)
+    (
+        "Create payments table",
+        """
+        CREATE TABLE IF NOT EXISTS payments (
+            id UUID PRIMARY KEY,
+            order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+            razorpay_order_id VARCHAR(255) NOT NULL,
+            razorpay_payment_id VARCHAR(255),
+            amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+            currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+            status VARCHAR(50) NOT NULL DEFAULT 'created',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT chk_payments_amount_non_negative CHECK (amount >= 0)
+        )
+        """,
+    ),
+    (
+        "Create index ix_payments_order_id",
+        "CREATE INDEX IF NOT EXISTS ix_payments_order_id ON payments(order_id)",
+    ),
+    (
+        "Create index ix_payments_razorpay_order_id",
+        "CREATE INDEX IF NOT EXISTS ix_payments_razorpay_order_id ON payments(razorpay_order_id)",
+    ),
+    (
+        "Create index ix_payments_status",
+        "CREATE INDEX IF NOT EXISTS ix_payments_status ON payments(status)",
+    ),
 ]
 
 

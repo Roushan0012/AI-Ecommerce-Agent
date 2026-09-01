@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.cart import Cart
     from app.models.merchant import Merchant
     from app.models.order_item import OrderItem
+    from app.models.payment import Payment
 
 
 def get_utc_now() -> datetime:
@@ -76,6 +77,12 @@ class Order(Base):
         back_populates="order",
         cascade="all, delete-orphan",
         order_by="OrderItem.created_at",
+    )
+    payments: Mapped[List["Payment"]] = relationship(
+        "Payment",
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="Payment.created_at",
     )
 
     def __repr__(self) -> str:

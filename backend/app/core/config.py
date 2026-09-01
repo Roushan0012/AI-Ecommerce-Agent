@@ -41,6 +41,19 @@ class Settings:
     def AI_BASE_URL(self) -> str:
         return os.getenv("AI_BASE_URL", "")
 
+    # Razorpay Configuration (Test Mode)
+    @property
+    def RAZORPAY_KEY_ID(self) -> str:
+        return os.getenv("RAZORPAY_KEY_ID", "rzp_test_placeholder")
+
+    @property
+    def RAZORPAY_KEY_SECRET(self) -> str:
+        return os.getenv("RAZORPAY_KEY_SECRET", "")
+
+    @property
+    def RAZORPAY_CURRENCY(self) -> str:
+        return os.getenv("RAZORPAY_CURRENCY", "INR")
+
     def get_database_url(self) -> str:
         url = self.DATABASE_URL
         if not url:

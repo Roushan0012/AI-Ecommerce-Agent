@@ -1245,6 +1245,66 @@
 				"description": "Fetch detail of specific order belonging to customer."
 			},
 			"response": []
+		},
+		{
+			"name": "Payments - Create Razorpay Test Order",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Razorpay test payment order generated with authoritative amount\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"payment_id\");",
+							"    pm.expect(jsonData.order_id).to.eql(pm.collectionVariables.get(\"created_order_id\"));",
+							"    pm.expect(jsonData).to.have.property(\"razorpay_order_id\");",
+							"    pm.expect(jsonData.razorpay_order_id).to.match(/^order_/);",
+							"    pm.expect(parseFloat(jsonData.amount)).to.be.above(0);",
+							"    pm.expect(jsonData.amount_in_paise).to.eql(Math.round(parseFloat(jsonData.amount) * 100));",
+							"    pm.expect(jsonData.currency).to.eql(\"INR\");",
+							"    pm.expect(jsonData).to.have.property(\"key_id\");",
+							"    pm.expect(jsonData.status).to.eql(\"created\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"order_id\": \"{{created_order_id}}\",\n  \"customer_id\": \"{{customer_id}}\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/payments/create-order",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"payments",
+						"create-order"
+					]
+				},
+				"description": "Create a Razorpay Test Mode checkout order for an application order using authoritative backend amount."
+			},
+			"response": []
 		}
 	]
 }

@@ -70,3 +70,4 @@ npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 | 21 | **Orders - Create Order from Cart** | `POST` | `/api/orders` | Status 201, converts active cart into `pending_payment` order with price snapshots |
 | 22 | **Orders - List Customer Orders** | `GET` | `/api/orders/:customer_id` | Status 200, lists all customer orders sorted descending |
 | 23 | **Orders - Get Single Order Detail** | `GET` | `/api/orders/:customer_id/:order_id` | Status 200, returns order detail matching customer and order ID |
+| 24 | **Payments - Create Razorpay Test Order** | `POST` | `/api/payments/create-order` | Status 200, creates Razorpay Test Mode checkout order with authoritative amount in paise |

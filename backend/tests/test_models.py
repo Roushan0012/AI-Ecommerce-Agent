@@ -5,17 +5,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.core.database import Base
-from app.models import Cart, CartItem, Merchant, Order, OrderItem, Product
+from app.models import Cart, CartItem, Merchant, Order, OrderItem, Payment, Product
 
 
 def test_models_importable():
-    """Verify all six models are imported properly."""
+    """Verify all seven models are imported properly."""
     assert Merchant is not None
     assert Product is not None
     assert Order is not None
     assert OrderItem is not None
     assert Cart is not None
     assert CartItem is not None
+    assert Payment is not None
 
 
 def test_merchant_model_construction():
@@ -157,6 +158,27 @@ def test_order_item_model_construction():
     assert "order_items" == OrderItem.__tablename__
 
 
+def test_payment_model_construction():
+    """Verify Payment instance construction and fields."""
+    payment_id = uuid.uuid4()
+    order_id = uuid.uuid4()
+    payment = Payment(
+        id=payment_id,
+        order_id=order_id,
+        razorpay_order_id="order_test_999",
+        amount=Decimal("4999.00"),
+        currency="INR",
+        status="created",
+    )
+    assert payment.id == payment_id
+    assert payment.order_id == order_id
+    assert payment.razorpay_order_id == "order_test_999"
+    assert payment.amount == Decimal("4999.00")
+    assert payment.currency == "INR"
+    assert payment.status == "created"
+    assert "payments" == Payment.__tablename__
+
+
 def test_model_relationships():
     """Verify bidirectional ORM relationships are properly configured."""
     merchant = Merchant(name="Store")
@@ -179,6 +201,12 @@ def test_model_relationships():
         unit_price=Decimal("100.00"),
         total_price=Decimal("100.00"),
     )
+    payment = Payment(
+        order=order,
+        razorpay_order_id="order_test_123",
+        amount=Decimal("100.00"),
+        status="created",
+    )
 
     # Merchant -> Products & Orders
     merchant.products.append(product)
@@ -192,11 +220,13 @@ def test_model_relationships():
     assert cart_item in cart.items
     assert cart_item.cart == cart
 
-    # Order -> OrderItems & Product -> OrderItems
+    # Order -> OrderItems & Product -> OrderItems & Order -> Payments
     assert order_item in order.items
     assert order_item.order == order
     assert order_item.product == product
     assert order.cart == cart
+    assert payment in order.payments
+    assert payment.order == order
 
 
 def test_model_table_constraints():
@@ -231,6 +261,10 @@ def test_model_table_constraints():
     assert "chk_order_items_quantity_positive" in order_item_constraints
     assert "chk_order_items_unit_price_non_negative" in order_item_constraints
     assert "chk_order_items_total_price_non_negative" in order_item_constraints
+
+    # Payment constraints
+    payment_constraints = {c.name for c in Payment.__table__.constraints}
+    assert "chk_payments_amount_non_negative" in payment_constraints
 
 
 def test_database_constraint_rejections():
