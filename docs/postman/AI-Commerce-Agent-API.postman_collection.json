@@ -1930,6 +1930,228 @@
 				"description": "Verifies that unauthorized agent calls without valid X-Agent-Key are rejected."
 			},
 			"response": []
+		},
+		{
+			"name": "Adversarial - Price Tampering Discarded",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Authoritative catalog price enforced, forged price 0.01 discarded\", function () {",
+							"    pm.expect(parseFloat(jsonData.items[0].unit_price)).to.be.above(100);",
+							"    pm.expect(parseFloat(jsonData.total)).to.be.above(100);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1,\n    \"unit_price\": 0.01,\n    \"total\": 0.01\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"cart",
+						"items"
+					]
+				},
+				"description": "Verifies that adversarial attempts to supply manipulated prices in cart requests are discarded."
+			},
+			"response": []
+		},
+		{
+			"name": "Adversarial - Negative Quantity Rejected",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 422\", function () {",
+							"    pm.response.to.have.status(422);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": -5\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"cart",
+						"items"
+					]
+				},
+				"description": "Verifies that negative quantities are rejected by schema validation."
+			},
+			"response": []
+		},
+		{
+			"name": "Adversarial - Cross-Customer Cart Checkout Blocked",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 404\", function () {",
+							"    pm.response.to.have.status(404);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Cross-customer access denied / not found\", function () {",
+							"    pm.expect(jsonData.detail.toLowerCase()).to.include(\"not found\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"cart_id\": \"d61a5fbf-01df-4ee4-a34e-5cf9388af5b5\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/orders",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"orders"
+					]
+				},
+				"description": "Verifies that Customer A cannot checkout Customer B's cart."
+			},
+			"response": []
+		},
+		{
+			"name": "Adversarial - Forged Webhook Signature Rejected",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Signature rejection verified\", function () {",
+							"    pm.expect(jsonData.detail.toLowerCase()).to.include(\"invalid webhook signature\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Razorpay-Signature",
+						"value": "bogus_forged_hmac_signature_hex_12345"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"event\": \"payment.captured\",\n    \"payload\": {\n        \"payment\": {\n            \"entity\": {\n                \"id\": \"pay_forged_999\",\n                \"order_id\": \"order_forged_999\",\n                \"amount\": 100000,\n                \"currency\": \"INR\",\n                \"status\": \"captured\"\n            }\n        }\n    }\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/payments/webhook",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"payments",
+						"webhook"
+					]
+				},
+				"description": "Verifies that forged Razorpay webhook signatures are rejected with 400 Bad Request."
+			},
+			"response": []
 		}
 	]
 }
