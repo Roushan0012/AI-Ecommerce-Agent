@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.core.guardrails import guardrails
 from app.models.order import Order
 from app.models.payment import Payment
 from app.schemas.payment import PaymentOrderResponse
@@ -31,7 +32,7 @@ class PaymentService:
         4. Calls RazorpayService to create checkout order in INR.
         5. Persists Payment record and attaches razorpay_order_id to Order.
         """
-        # 1. Authoritative Order Lookup
+        # 1. Authoritative Order Lookup & Guardrail Ownership Check
         stmt = select(Order).where(Order.id == order_id)
         order = db.execute(stmt).scalar_one_or_none()
 
@@ -41,11 +42,7 @@ class PaymentService:
                 detail=f"Order with ID '{order_id}' not found.",
             )
 
-        if customer_id and order.customer_id != customer_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Order not found for this customer.",
-            )
+        guardrails.validate_customer_ownership(order.customer_id, customer_id, "Order")
 
         # 2. Eligibility Validation
         if order.status == "paid":

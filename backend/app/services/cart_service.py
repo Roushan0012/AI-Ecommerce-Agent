@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
+from app.core.guardrails import guardrails
 from app.models.cart import Cart
 from app.models.cart_item import CartItem
 from app.models.product import Product
@@ -65,11 +66,8 @@ class CartService:
         """
         Adds a product to active cart with strict server-side price & inventory validation.
         """
-        if quantity <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Quantity must be a positive integer.",
-            )
+        # Guardrail: validate positive quantity
+        guardrails.validate_quantity(quantity)
 
         # 1. Authoritative Product Validation
         prod_stmt = select(Product).where(Product.id == product_id)
@@ -145,11 +143,7 @@ class CartService:
         quantity: int,
     ) -> Cart:
         """Updates quantity for an existing cart item."""
-        if quantity <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Quantity must be a positive integer. Use DELETE to remove item.",
-            )
+        guardrails.validate_quantity(quantity)
 
         cart = cls.get_active_cart(db, customer_id)
         if not cart:

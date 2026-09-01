@@ -13,6 +13,7 @@ from app.schemas.growth import (
     AgentGrowthRequest,
     AgentGrowthResponse,
 )
+from app.services.agent_guardrails import agent_guardrail_service
 from app.services.ai_agent import (
     AIConfigurationError,
     AIProviderError,
@@ -32,7 +33,10 @@ async def understand_intent(request: AgentUnderstandRequest):
     Converts phrases like 'wireless headphones under ₹5000' into structured query parameters.
     """
     try:
-        response = await ai_agent_service.understand_user_message(request.message)
+        clean_prompt = agent_guardrail_service.sanitize_user_prompt(request.message)
+        response = await ai_agent_service.understand_user_message(clean_prompt)
+        response.intent = agent_guardrail_service.validate_shopping_intent(response.intent)
+        response.message = agent_guardrail_service.redact_sensitive_information(response.message)
         return response
     except AIConfigurationError as e:
         raise HTTPException(
@@ -63,13 +67,14 @@ async def search_products_with_agent(
     3. Queries Supabase database and returns matching products with pagination.
     """
     try:
-        understand_res = await ai_agent_service.understand_user_message(request.message)
-        intent = understand_res.intent
+        clean_prompt = agent_guardrail_service.sanitize_user_prompt(request.message)
+        understand_res = await ai_agent_service.understand_user_message(clean_prompt)
+        intent = agent_guardrail_service.validate_shopping_intent(understand_res.intent)
 
         # If non-shopping intent, return without querying database
         if intent.intent != "product_search":
             return AgentSearchResponse(
-                message=understand_res.message,
+                message=agent_guardrail_service.redact_sensitive_information(understand_res.message),
                 intent=intent,
                 items=[],
                 total=0,
@@ -90,12 +95,12 @@ async def search_products_with_agent(
         )
 
         if products_res.total == 0:
-            summary_message = f"No products found matching '{request.message}'."
+            summary_message = f"No products found matching '{clean_prompt}'."
         else:
             summary_message = f"Found {products_res.total} product(s) matching your request."
 
         return AgentSearchResponse(
-            message=summary_message,
+            message=agent_guardrail_service.redact_sensitive_information(summary_message),
             intent=intent,
             items=products_res.items,
             total=products_res.total,
@@ -132,13 +137,14 @@ async def recommend_products_with_agent(
     4. Returns ranked product recommendations with scores and explainability reasons.
     """
     try:
-        understand_res = await ai_agent_service.understand_user_message(request.message)
-        intent = understand_res.intent
+        clean_prompt = agent_guardrail_service.sanitize_user_prompt(request.message)
+        understand_res = await ai_agent_service.understand_user_message(clean_prompt)
+        intent = agent_guardrail_service.validate_shopping_intent(understand_res.intent)
 
         # If non-shopping intent, return conversational response without database search
         if intent.intent != "product_search":
             return AgentRecommendResponse(
-                message=understand_res.message,
+                message=agent_guardrail_service.redact_sensitive_information(understand_res.message),
                 intent=intent,
                 items=[],
                 total=0,
@@ -150,18 +156,18 @@ async def recommend_products_with_agent(
         recommended_items, total = recommendation_service.recommend_products(
             db=db,
             intent=intent,
-            user_message=request.message,
+            user_message=clean_prompt,
             page=request.page,
             page_size=request.page_size,
         )
 
         if total == 0:
-            summary_message = f"No recommended products found matching '{request.message}'."
+            summary_message = f"No recommended products found matching '{clean_prompt}'."
         else:
             summary_message = f"Found {total} top recommendation(s) for your request."
 
         return AgentRecommendResponse(
-            message=summary_message,
+            message=agent_guardrail_service.redact_sensitive_information(summary_message),
             intent=intent,
             items=recommended_items,
             total=total,
@@ -198,13 +204,14 @@ async def generate_growth_opportunities(
     4. Generates ranked cross-sell accessory companions.
     """
     try:
-        understand_res = await ai_agent_service.understand_user_message(request.message)
-        intent = understand_res.intent
+        clean_prompt = agent_guardrail_service.sanitize_user_prompt(request.message)
+        understand_res = await ai_agent_service.understand_user_message(clean_prompt)
+        intent = agent_guardrail_service.validate_shopping_intent(understand_res.intent)
 
         # If non-shopping intent, return conversational response without growth items
         if intent.intent != "product_search":
             return AgentGrowthResponse(
-                message=understand_res.message,
+                message=agent_guardrail_service.redact_sensitive_information(understand_res.message),
                 intent=intent,
                 primary_products=[],
                 upsell=[],
@@ -219,21 +226,21 @@ async def generate_growth_opportunities(
             growth_service.generate_growth_recommendations(
                 db=db,
                 intent=intent,
-                user_message=request.message,
+                user_message=clean_prompt,
                 page=request.page,
                 page_size=request.page_size,
             )
         )
 
         if total == 0 and not primary_products:
-            summary_message = f"No growth recommendations found for '{request.message}'."
+            summary_message = f"No growth recommendations found for '{clean_prompt}'."
         else:
             summary_message = (
                 f"I found suitable products and {total} useful upgrade and accessory options."
             )
 
         return AgentGrowthResponse(
-            message=summary_message,
+            message=agent_guardrail_service.redact_sensitive_information(summary_message),
             intent=intent,
             primary_products=primary_products,
             upsell=upsell_items,
