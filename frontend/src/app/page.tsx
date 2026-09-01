@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { fetchHealth, HealthResponse, API_BASE_URL } from "@/lib/api";
 
 export default function Home() {
@@ -133,6 +134,16 @@ export default function Home() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white cursor-pointer"
+          >
+            <span>📊</span>
+            <span>Open Merchant Dashboard</span>
+          </Link>
         </div>
 
         <div className="mt-8 flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-500">

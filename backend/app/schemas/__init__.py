@@ -20,6 +20,13 @@ from app.schemas.cart import (
     CartItemUpdateRequest,
     CartResponse,
 )
+from app.schemas.dashboard import (
+    DashboardActivityItem,
+    DashboardActivityResponse,
+    DashboardOrderItem,
+    DashboardOrdersResponse,
+    OverviewMetricsResponse,
+)
 from app.schemas.growth import (
     AgentGrowthRequest,
     AgentGrowthResponse,
@@ -70,4 +77,9 @@ __all__ = [
     "AuditEventType",
     "AuditLogResponse",
     "AuditLogListResponse",
+    "OverviewMetricsResponse",
+    "DashboardOrderItem",
+    "DashboardOrdersResponse",
+    "DashboardActivityItem",
+    "DashboardActivityResponse",
 ]
