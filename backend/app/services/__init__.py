@@ -1,3 +1,8 @@
+from app.services.agent_commerce_service import (
+    AgentCommerceService,
+    agent_commerce_service,
+    verify_agent_api_key,
+)
 from app.services.agent_guardrails import (
     AgentGuardrailService,
     agent_guardrail_service,
@@ -39,4 +44,7 @@ __all__ = [
     "audit_service",
     "DashboardService",
     "dashboard_service",
+    "AgentCommerceService",
+    "agent_commerce_service",
+    "verify_agent_api_key",
 ]

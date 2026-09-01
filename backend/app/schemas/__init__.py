@@ -8,6 +8,16 @@ from app.schemas.agent import (
     RecommendedProductItem,
     ShoppingIntent,
 )
+from app.schemas.agent_commerce import (
+    AgentCartItemRequest,
+    AgentDiscoveryRequest,
+    AgentDiscoveryResponse,
+    AgentInventoryCheckRequest,
+    AgentInventoryCheckResponse,
+    AgentOrderCreateRequest,
+    AgentPaymentInitiateRequest,
+    AgentProductDetailResponse,
+)
 from app.schemas.audit import (
     AuditEventType,
     AuditLogListResponse,
@@ -82,4 +92,12 @@ __all__ = [
     "DashboardOrdersResponse",
     "DashboardActivityItem",
     "DashboardActivityResponse",
+    "AgentDiscoveryRequest",
+    "AgentDiscoveryResponse",
+    "AgentProductDetailResponse",
+    "AgentInventoryCheckRequest",
+    "AgentInventoryCheckResponse",
+    "AgentCartItemRequest",
+    "AgentOrderCreateRequest",
+    "AgentPaymentInitiateRequest",
 ]

@@ -58,6 +58,11 @@ class Settings:
     def RAZORPAY_WEBHOOK_SECRET(self) -> str:
         return os.getenv("RAZORPAY_WEBHOOK_SECRET", "test_webhook_secret_key_123")
 
+    # Agent-to-Agent Commerce Configuration (Phase 15)
+    @property
+    def COMMERCE_AGENT_KEY(self) -> str:
+        return os.getenv("COMMERCE_AGENT_KEY", "ag_live_key_test_commerce_2026")
+
     def get_database_url(self) -> str:
         url = self.DATABASE_URL
         if not url:

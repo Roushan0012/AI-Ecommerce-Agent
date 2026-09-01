@@ -1592,6 +1592,344 @@
 				"description": "Retrieves recent observable agent activities, commerce actions, and security events."
 			},
 			"response": []
+		},
+		{
+			"name": "Agent Commerce - Discover Products",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Discovery returns products with authoritative notice\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"products\");",
+							"    pm.expect(jsonData).to.have.property(\"authoritative_notice\");",
+							"    pm.expect(jsonData.products).to.be.an(\"array\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"query\": \"wireless earbuds with active noise cancellation\",\n    \"budget_max\": 20000,\n    \"quantity\": 1\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"discover"
+					]
+				},
+				"description": "Machine-to-machine product discovery interface for external buyer agent."
+			},
+			"response": []
+		},
+		{
+			"name": "Agent Commerce - Get Product Details",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Authoritative product details returned\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"product\");",
+							"    pm.expect(jsonData).to.have.property(\"authoritative_price\");",
+							"    pm.expect(jsonData.in_stock).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/products/465206d3-bd4d-4f9f-b705-010670ab4006",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"products",
+						"465206d3-bd4d-4f9f-b705-010670ab4006"
+					]
+				},
+				"description": "Retrieves server-authoritative product specs, price, and inventory for buyer agent."
+			},
+			"response": []
+		},
+		{
+			"name": "Agent Commerce - Inventory Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Inventory check returns available status\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"available\");",
+							"    pm.expect(jsonData).to.have.property(\"unit_price\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/inventory/check",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"inventory",
+						"check"
+					]
+				},
+				"description": "Verifies stock availability and purchase quantity limits before cart checkout."
+			},
+			"response": []
+		},
+		{
+			"name": "Agent Commerce - Add Cart Item",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Cart item added with server-calculated price\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"id\");",
+							"    pm.expect(jsonData.items.length).to.be.above(0);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"cart",
+						"items"
+					]
+				},
+				"description": "Adds catalog product to buyer agent session cart using server-side prices."
+			},
+			"response": []
+		},
+		{
+			"name": "Agent Commerce - Create Order (Idempotent)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200 or 201\", function () {",
+							"    pm.expect([200, 201]).to.include(pm.response.code);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Order created or idempotently returned\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"id\");",
+							"    pm.expect(jsonData).to.have.property(\"total\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "ag_live_key_test_commerce_2026"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"cart_id\": \"d61a5fbf-01df-4ee4-a34e-5cf9388af5b5\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/orders",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"orders"
+					]
+				},
+				"description": "Creates an order from buyer agent cart with idempotency guarantee."
+			},
+			"response": []
+		},
+		{
+			"name": "Agent Commerce - Unauthorized Rejection",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 401\", function () {",
+							"    pm.response.to.have.status(401);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Detail specifies missing or invalid agent key\", function () {",
+							"    pm.expect(jsonData.detail).to.include(\"Agent Commerce Key\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-Agent-Key",
+						"value": "invalid_forged_key_12345"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"query\": \"laptop\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent-commerce",
+						"discover"
+					]
+				},
+				"description": "Verifies that unauthorized agent calls without valid X-Agent-Key are rejected."
+			},
+			"response": []
 		}
 	]
 }
