@@ -7,6 +7,10 @@ from app.services.ai_agent import (
     OpenAICompatibleProvider,
     ai_agent_service,
 )
+from app.services.growth_service import (
+    GrowthRecommendationService,
+    growth_service,
+)
 from app.services.product_service import (
     ProductService,
     product_service,
@@ -28,4 +32,6 @@ __all__ = [
     "product_service",
     "RecommendationService",
     "recommendation_service",
+    "GrowthRecommendationService",
+    "growth_service",
 ]

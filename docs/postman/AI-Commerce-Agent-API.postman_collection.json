@@ -292,6 +292,73 @@
 			"response": []
 		},
 		{
+			"name": "AI Agent - Growth (Upsell & Cross-sell)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Response contains primary products, upsells, and cross-sells\", function () {",
+							"    pm.expect(jsonData).to.have.property(\"message\");",
+							"    pm.expect(jsonData).to.have.property(\"intent\");",
+							"    pm.expect(jsonData).to.have.property(\"primary_products\");",
+							"    pm.expect(jsonData).to.have.property(\"upsell\");",
+							"    pm.expect(jsonData).to.have.property(\"cross_sell\");",
+							"    pm.expect(jsonData).to.have.property(\"total\");",
+							"});",
+							"",
+							"pm.test(\"Growth items contain valid scores and explainable reasons\", function () {",
+							"    if (jsonData.cross_sell && jsonData.cross_sell.length > 0) {",
+							"        var cs = jsonData.cross_sell[0];",
+							"        pm.expect(cs.type).to.eql(\"cross_sell\");",
+							"        pm.expect(cs).to.have.property(\"product\");",
+							"        pm.expect(cs).to.have.property(\"reason\");",
+							"        pm.expect(cs.score).to.be.within(0.0, 1.0);",
+							"    }",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"message\": \"Show me mechanical keyboards\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/agent/growth",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"agent",
+						"growth"
+					]
+				},
+				"description": "AI Agent Upsell & Cross-sell growth engine endpoint generating upgrade and companion accessory opportunities."
+			},
+			"response": []
+		},
+		{
 			"name": "List Products (Default)",
 			"event": [
 				{

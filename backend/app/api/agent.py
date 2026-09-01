@@ -9,11 +9,16 @@ from app.schemas.agent import (
     AgentUnderstandRequest,
     AgentUnderstandResponse,
 )
+from app.schemas.growth import (
+    AgentGrowthRequest,
+    AgentGrowthResponse,
+)
 from app.services.ai_agent import (
     AIConfigurationError,
     AIProviderError,
     ai_agent_service,
 )
+from app.services.growth_service import growth_service
 from app.services.product_service import product_service
 from app.services.recommendation_service import recommendation_service
 
@@ -177,4 +182,78 @@ async def recommend_products_with_agent(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while generating recommendations with the AI agent.",
+        )
+
+
+@router.post("/growth", response_model=AgentGrowthResponse)
+async def generate_growth_opportunities(
+    request: AgentGrowthRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    AI Growth Engine: generates Upsell and Cross-sell opportunities:
+    1. Understands customer natural language shopping intent.
+    2. Identifies matching primary products.
+    3. Generates ranked upsell alternatives (specification improvements within budget).
+    4. Generates ranked cross-sell accessory companions.
+    """
+    try:
+        understand_res = await ai_agent_service.understand_user_message(request.message)
+        intent = understand_res.intent
+
+        # If non-shopping intent, return conversational response without growth items
+        if intent.intent != "product_search":
+            return AgentGrowthResponse(
+                message=understand_res.message,
+                intent=intent,
+                primary_products=[],
+                upsell=[],
+                cross_sell=[],
+                total=0,
+                page=request.page,
+                page_size=request.page_size,
+            )
+
+        # Generate growth opportunities
+        primary_products, upsell_items, cross_sell_items, total = (
+            growth_service.generate_growth_recommendations(
+                db=db,
+                intent=intent,
+                user_message=request.message,
+                page=request.page,
+                page_size=request.page_size,
+            )
+        )
+
+        if total == 0 and not primary_products:
+            summary_message = f"No growth recommendations found for '{request.message}'."
+        else:
+            summary_message = (
+                f"I found suitable products and {total} useful upgrade and accessory options."
+            )
+
+        return AgentGrowthResponse(
+            message=summary_message,
+            intent=intent,
+            primary_products=primary_products,
+            upsell=upsell_items,
+            cross_sell=cross_sell_items,
+            total=total,
+            page=request.page,
+            page_size=request.page_size,
+        )
+    except AIConfigurationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
+    except AIProviderError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(e),
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while generating upsell and cross-sell recommendations.",
         )

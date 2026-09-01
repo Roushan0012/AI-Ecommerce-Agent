@@ -8,6 +8,11 @@ from app.schemas.agent import (
     RecommendedProductItem,
     ShoppingIntent,
 )
+from app.schemas.growth import (
+    AgentGrowthRequest,
+    AgentGrowthResponse,
+    GrowthRecommendationItem,
+)
 from app.schemas.product import (
     ProductBase,
     ProductListResponse,
@@ -26,4 +31,7 @@ __all__ = [
     "RecommendedProductItem",
     "AgentRecommendRequest",
     "AgentRecommendResponse",
+    "GrowthRecommendationItem",
+    "AgentGrowthRequest",
+    "AgentGrowthResponse",
 ]

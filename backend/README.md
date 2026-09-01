@@ -22,15 +22,18 @@ backend/
 │   │   └── order_item.py
 │   ├── schemas/
 │   │   ├── agent.py
+│   │   ├── growth.py
 │   │   └── product.py
 │   ├── services/
 │   │   ├── ai_agent.py
+│   │   ├── growth_service.py
 │   │   ├── product_service.py
 │   │   └── recommendation_service.py
 │   └── main.py
 ├── tests/
 │   ├── test_agent_api.py
 │   ├── test_database_health.py
+│   ├── test_growth_api.py
 │   ├── test_health.py
 │   ├── test_models.py
 │   ├── test_products_api.py
@@ -146,37 +149,72 @@ curl -X POST "http://localhost:8000/api/agent/recommend" \
   -d '{"message": "I need wireless headphones under ₹5000 for travelling"}'
 ```
 
+#### `POST /api/agent/growth`
+AI Growth Engine endpoint that generates **Upsell** and **Cross-sell** opportunities:
+- **Primary Products**: Identifies top product matches corresponding to customer query.
+- **Upsell Opportunities**:
+  - Recommends higher-tier products in the same category offering improved specifications (e.g. 65W charger $\rightarrow$ 100W multi-port desktop station, or earbuds $\rightarrow$ flagship ANC headphones).
+  - Strictly respects explicit maximum budget constraints.
+  - Generates clear, explainable reasons contrasting upgraded specifications and price differences.
+- **Cross-sell Opportunities**:
+  - Recommends complementary companion accessories (e.g. Keyboards $\rightarrow$ Ergonomic Mouse, Desk Mat, USB-C Hub; Backpack $\rightarrow$ Cable Organizer Pouch, Stainless Flask).
+  - Deterministic relationship mapping across categories and functional roles.
+- **Hard Constraints**:
+  - Excludes inactive products (`is_active = False`).
+  - Excludes out-of-stock products (`inventory <= 0`).
+  - Excludes products exceeding explicitly defined max budget.
+  - Excludes duplicates and never recommends the primary product as its own upsell/cross-sell.
+
+**Example Request:**
+```bash
+curl -X POST "http://localhost:8000/api/agent/growth" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Show me mechanical keyboards"}'
+```
+
 **Example Response:**
 ```json
 {
-  "message": "Found 2 top recommendation(s) for your request.",
+  "message": "I found suitable products and 3 useful upgrade and accessory options.",
   "intent": {
     "intent": "product_search",
-    "search_query": "wireless headphone",
-    "category": "Audio",
+    "search_query": "mechanical keyboard",
+    "category": "Computer Accessories",
     "min_price": null,
-    "max_price": "5000.0",
+    "max_price": null,
     "currency": "INR",
     "availability_required": true
   },
-  "items": [
+  "primary_products": [
     {
-      "product": {
-        "id": "465206d3-bd4d-4f9f-b705-010670ab4006",
-        "merchant_id": "6b583a79-0f19-483c-81da-cdf9f13aef71",
-        "name": "AuraSound Mini Wireless Earbuds",
-        "category": "Audio",
-        "price": "3499.00",
-        "currency": "INR",
-        "inventory": 80,
-        "sku": "AUD-AS-EB02",
-        "is_active": true
-      },
-      "score": 0.73,
-      "reason": "Matches category 'Audio'; matched keywords 'wireless'; within budget (₹3,499 <= ₹5,000); available in stock (80 units)"
+      "id": "2eb0746e-1d37-4d92-bb8f-e18e77519ea8",
+      "name": "ErgoPro Mechanical Wireless Keyboard",
+      "category": "Computer Accessories",
+      "price": "7999.00",
+      "inventory": 35,
+      "sku": "ACC-EP-KB01",
+      "is_active": true
     }
   ],
-  "total": 2,
+  "upsell": [],
+  "cross_sell": [
+    {
+      "type": "cross_sell",
+      "product": {
+        "id": "e2a0f8bf-1044-4861-bb38-5f5647587efc",
+        "name": "PrecisionGlide Ergonomic Wireless Mouse",
+        "category": "Computer Accessories",
+        "price": "2499.00",
+        "inventory": 90,
+        "sku": "ACC-PG-MS02"
+      },
+      "primary_product_id": "2eb0746e-1d37-4d92-bb8f-e18e77519ea8",
+      "primary_product_name": "ErgoPro Mechanical Wireless Keyboard",
+      "score": 0.92,
+      "reason": "An ergonomic wireless mouse is the ideal productivity companion to pair with your ErgoPro Mechanical Wireless Keyboard."
+    }
+  ],
+  "total": 1,
   "page": 1,
   "page_size": 10
 }
