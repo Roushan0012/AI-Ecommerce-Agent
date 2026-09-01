@@ -278,16 +278,32 @@ class AIAgentService:
         if provider_name == "mock":
             return MockAIProvider()
 
-        if provider_name in ["openai", "groq", "openrouter"]:
+        if provider_name in ["openai", "groq", "openrouter"] or settings.AI_API_KEY:
+            api_key = settings.AI_API_KEY
             base_url = settings.AI_BASE_URL
-            if not base_url and provider_name == "groq":
+            model = settings.AI_MODEL
+
+            # Auto-detect Groq keys or Groq models
+            if provider_name == "groq" or api_key.startswith("gsk_"):
                 base_url = "https://api.groq.com/openai/v1"
-            elif not base_url and provider_name == "openrouter":
+                if not model or model == "gpt-4o-mini":
+                    model = "openai/gpt-oss-120b"
+            elif provider_name == "openrouter" or api_key.startswith("sk-or-"):
                 base_url = "https://openrouter.ai/api/v1"
+            elif api_key.startswith("sk-proj-") or (api_key.startswith("sk-") and not api_key.startswith("sk-or-")):
+                # OpenAI key detected
+                base_url = "https://api.openai.com/v1"
+                if "llama" in model.lower() or not model:
+                    model = "gpt-4o-mini"
+            elif base_url and "openai.com" in base_url and "llama" in model.lower():
+                # OpenAI base_url cannot run llama models; default to gpt-4o-mini
+                model = "gpt-4o-mini"
+            elif not base_url and "llama" in model.lower():
+                base_url = "https://api.groq.com/openai/v1"
 
             return OpenAICompatibleProvider(
-                api_key=settings.AI_API_KEY,
-                model=settings.AI_MODEL,
+                api_key=api_key,
+                model=model,
                 base_url=base_url,
             )
 

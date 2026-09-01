@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 backend_dir = Path(__file__).resolve().parent.parent.parent
 env_file = backend_dir / ".env"
 if env_file.exists():
-    load_dotenv(dotenv_path=env_file)
+    load_dotenv(dotenv_path=env_file, override=True)
 else:
-    load_dotenv()
+    load_dotenv(override=True)
 
 
 class Settings:
