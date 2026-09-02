@@ -169,6 +169,7 @@ POSTGRES_MIGRATION_STATEMENTS = [
             id UUID PRIMARY KEY,
             email VARCHAR(255) NOT NULL,
             password_hash VARCHAR(255) NOT NULL,
+            role VARCHAR(50) NOT NULL DEFAULT 'customer',
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -179,6 +180,15 @@ POSTGRES_MIGRATION_STATEMENTS = [
     (
         "Create index ix_users_email",
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users(email)",
+    ),
+    # 8. Add role column and index to users table (Phase 17D)
+    (
+        "Add role column to users table",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50) NOT NULL DEFAULT 'customer'",
+    ),
+    (
+        "Create index ix_users_role",
+        "CREATE INDEX IF NOT EXISTS ix_users_role ON users(role)",
     ),
 ]
 

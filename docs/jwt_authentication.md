@@ -1,25 +1,53 @@
-# Authentication Documentation (Phase 17A, 17B, & 17C)
+# Authentication & Authorization Documentation (Phase 17A, 17B, 17C, & 17D)
 
 ## 1. Overview
-The platform authentication architecture utilizes **Argon2id** password hashing and **RFC 7519 JSON Web Tokens (JWT)** for user identity management, authentication, and endpoint authorization.
+The platform authentication and authorization architecture combines **Argon2id** password hashing, **RFC 7519 JSON Web Tokens (JWT)** for user identity management, and **Role-Based Access Control (RBAC)** for endpoint authorization and tenant isolation.
 
 ```
 Registration:
-Plaintext Password → Argon2id PasswordHasher → Salted Hash ($argon2id$...) → User Table
+Plaintext Password → Argon2id PasswordHasher → Salted Hash ($argon2id$...) → User Table (role: customer)
 
 Login:
-User Credentials → Argon2id Verification → PyJWT (HS256) → Signed JWT Access Token (sub: user.id)
+User Credentials → Argon2id Verification → PyJWT (HS256) → Signed JWT Access Token (sub: user.id, role: user.role)
 
-Protected API Access:
-HTTP Request with 'Authorization: Bearer <token>' → get_current_user Dependency → Authoritative User Context & Ownership Enforcement
+Protected Endpoint Access:
+HTTP Request with 'Authorization: Bearer <token>'
+   │
+   ▼
+[get_current_user] ──── Invalid/Missing Token? ───► 401 Unauthorized
+   │
+   ▼ Verified User Identity (Authoritative DB lookup)
+   │
+[require_roles] ────── Insufficient Role? ────────► 403 Forbidden
+   │
+   ▼ Authorized User Context (customer, merchant, or admin)
+[Endpoint Execution + Resource Ownership Verification]
 ```
 
 > [!NOTE]
-> Phase 17A implemented the cryptographic foundation, Phase 17B implemented user registration/login, and Phase 17C protects user commerce endpoints with JWT and cross-user ownership controls. Role-Based Access Control (RBAC) and permissions are deferred to Phase 17D.
+> Phase 17A implemented the cryptographic foundation, Phase 17B implemented user registration/login, Phase 17C protects user commerce endpoints with JWT and ownership controls, and Phase 17D implements role-based authorization (`customer`, `merchant`, `admin`), privilege-escalation prevention, and dashboard/admin role boundaries.
 
 ---
 
-## 2. Environment Configuration
+## 2. Controlled Role Set
+
+The platform enforces a minimal, controlled role set:
+
+| Role | Permitted Actions | Accessible Endpoints | Default Assignment |
+|---|---|---|---|
+| `customer` | Browse catalog, use AI shopping assistant, manage personal cart, place orders, make payments, inspect personal audit trail. | `/api/cart/*`, `/api/orders/*`, `/api/payments/create-order`, `/api/audit/{customer_id}` | **Default for all new registrations** |
+| `merchant` | Customer capabilities + merchant dashboard analytics, revenue metrics, order lists, and agent activity feed. | All customer endpoints + `/api/dashboard/overview`, `/api/dashboard/orders`, `/api/dashboard/activity` | Assigned administratively / seeded |
+| `admin` | Full platform oversight: inspect system status, platform-wide audit events, cross-customer audit trails, and merchant dashboards. | All endpoints + `/api/admin/system/status`, `/api/admin/audit-logs`, `/api/audit/admin/all` | Assigned administratively / seeded |
+
+### 2.1 Privilege Escalation Prevention
+- **Registration Role Sanitization**: Public registration (`/api/auth/register`) strictly sets `role="customer"`. Any client attempt to submit `{"role": "admin"}` or `{"role": "merchant"}` is completely discarded; the user is created with the `customer` role.
+- **Server-Authoritative Role Verification**: Authorization checks inspect the authoritative database record (`current_user.role`). Client-supplied request body roles or forged token claims are disregarded.
+- **No Self-Modification API**: No public API exists that allows users to alter their own role or another user's role.
+- **Model Validation**: The SQLAlchemy `User` model employs `@validates("role")` to reject any arbitrary or unapproved role strings at the ORM layer.
+
+---
+
+## 3. Environment Configuration
 The authentication subsystem is configured via environment variables in `.env`:
 
 | Variable | Type | Default | Description |
@@ -30,43 +58,51 @@ The authentication subsystem is configured via environment variables in `.env`:
 
 ---
 
-## 3. JWT Authentication Dependency (`get_current_user`)
-A reusable FastAPI dependency `get_current_user` (`backend/app/core/dependencies.py`):
-1. **Header Validation**: Enforces `Authorization: Bearer <token>`.
-2. **Cryptographic Verification**: Verifies HMAC-SHA256 signature, expiration (`exp`), and issued-at (`iat`).
-3. **Subject Validation**: Validates UUID format in `sub` claim.
-4. **Database Identity Lookup**: Resolves active `User` from PostgreSQL / SQLite.
-5. **Rejection Cases (`401 Unauthorized`)**:
-   - Missing `Authorization` header
-   - Malformed scheme (non-Bearer)
-   - Invalid token signature
-   - Expired token
-   - Nonexistent user in database
-   - Inactive user account (`is_active = False`)
+## 4. Authorization Dependencies
+
+FastAPI authorization dependencies (`backend/app/core/dependencies.py`) build directly on top of `get_current_user`:
+
+```python
+require_customer = require_roles(UserRole.CUSTOMER.value, UserRole.MERCHANT.value, UserRole.ADMIN.value)
+require_merchant = require_roles(UserRole.MERCHANT.value, UserRole.ADMIN.value)
+require_admin = require_roles(UserRole.ADMIN.value)
+```
+
+### 4.1 Distinction Between 401 and 403
+- **`401 Unauthorized`**: Authentication failure. The request lacks valid authentication credentials.
+  - Missing `Authorization` header
+  - Malformed scheme (non-Bearer)
+  - Cryptographically invalid signature
+  - Expired token
+  - User not found in database or account inactive
+- **`403 Forbidden`**: Authorization failure. The request is authenticated, but the user does not have permission.
+  - Customer accessing merchant dashboard (`/api/dashboard/*`)
+  - Customer or merchant accessing admin endpoints (`/api/admin/*`, `/api/audit/admin/all`)
+  - Customer attempting to access or modify another customer's cart, orders, or audit trail (cross-user violation)
 
 ---
 
-## 4. API Surface: Public vs Protected vs Agent Boundary
+## 5. API Surface & Protection Matrix
 
-### 4.1 Public Endpoints (No Auth Required)
+### 5.1 Public Endpoints (No Authentication Required)
 | Method | Route | Purpose |
 |---|---|---|
 | `GET` | `/api/health` | API health check |
 | `GET` | `/api/health/database` | Database connectivity health check |
-| `POST` | `/api/auth/register` | User registration |
+| `POST` | `/api/auth/register` | Customer user registration (always role: customer) |
 | `POST` | `/api/auth/login` | User authentication & JWT issuance |
-| `GET` | `/api/products` | Catalog listing with filters & pagination |
-| `GET` | `/api/products/{id}` | Product detail lookup |
-| `POST` | `/api/agent/understand` | AI intent extraction from message |
-| `POST` | `/api/agent/search` | AI-assisted product search |
-| `POST` | `/api/agent/recommend` | Multi-factor recommendation scoring |
-| `POST` | `/api/agent/growth` | Growth engine upsell & cross-sell |
+| `GET` | `/api/products` | Public catalog listing with filters & pagination |
+| `GET` | `/api/products/{id}` | Public product detail lookup |
+| `POST` | `/api/agent/understand` | Public AI intent extraction from natural language |
+| `POST` | `/api/agent/search` | Public AI-assisted product search |
+| `POST` | `/api/agent/recommend` | Public multi-factor recommendation scoring |
+| `POST` | `/api/agent/growth` | Public growth engine upsell & cross-sell |
 | `POST` | `/api/payments/webhook` | Razorpay webhook (HMAC signature verified) |
 
-### 4.2 JWT Protected User Endpoints (`Authorization: Bearer <token>`)
-| Method | Route | Ownership & Access Control |
+### 5.2 Customer Protected Endpoints (`require_customer`)
+| Method | Route | Role & Ownership Enforcement |
 |---|---|---|
-| `POST` | `/api/cart` | Creates or retrieves cart for authenticated user. Client-supplied ID cannot override JWT identity. |
+| `POST` | `/api/cart` | Creates or retrieves cart for authenticated user. Client ID cannot override JWT identity. |
 | `GET` | `/api/cart/{customer_id}` | Authenticated user can only view their own cart (`403 Forbidden` on mismatch). |
 | `POST` | `/api/cart/{customer_id}/items` | Authenticated user can only modify their own cart (`403 Forbidden` on mismatch). |
 | `PUT` | `/api/cart/{customer_id}/items/{product_id}` | Authenticated user can only modify their own cart (`403 Forbidden` on mismatch). |
@@ -74,30 +110,82 @@ A reusable FastAPI dependency `get_current_user` (`backend/app/core/dependencies
 | `POST` | `/api/orders` | Converts authenticated user's active cart into an order (`403 Forbidden` on mismatch). |
 | `GET` | `/api/orders/{customer_id}` | Authenticated user can only view their own orders (`403 Forbidden` on mismatch). |
 | `GET` | `/api/orders/{customer_id}/{order_id}` | Authenticated user can only view their own order detail (`403 Forbidden` on mismatch). |
-| `POST` | `/api/payments/create-order` | Authenticated user can only create payments for their own orders (`403 Forbidden` on mismatch). |
-| `GET` | `/api/audit/{customer_id}` | Authenticated user can only access their own audit trail (`403 Forbidden` on mismatch). |
+| `POST` | `/api/payments/create-order` | Authenticated user can only initiate payments for their own orders (`403 Forbidden` on mismatch). |
+| `GET` | `/api/audit/{customer_id}` | Authenticated user can access their own audit trail; admin has oversight (`403 Forbidden` otherwise). |
 
-### 4.3 Machine-to-Machine Agent Endpoints (`X-Agent-Key`)
+### 5.3 Merchant Protected Endpoints (`require_merchant`)
+| Method | Route | Role Requirement |
+|---|---|---|
+| `GET` | `/api/dashboard/overview` | Merchant or Admin (`role: merchant` or `admin`). Customer receives `403 Forbidden`. |
+| `GET` | `/api/dashboard/orders` | Merchant or Admin (`role: merchant` or `admin`). Customer receives `403 Forbidden`. |
+| `GET` | `/api/dashboard/activity` | Merchant or Admin (`role: merchant` or `admin`). Customer receives `403 Forbidden`. |
+
+### 5.4 Admin Protected Endpoints (`require_admin`)
+| Method | Route | Role Requirement |
+|---|---|---|
+| `GET` | `/api/admin/system/status` | Strictly Admin (`role: admin`). Customer and merchant receive `403 Forbidden`. |
+| `GET` | `/api/admin/audit-logs` | Strictly Admin (`role: admin`). Customer and merchant receive `403 Forbidden`. |
+| `GET` | `/api/audit/admin/all` | Strictly Admin (`role: admin`). Customer and merchant receive `403 Forbidden`. |
+
+### 5.5 Machine-to-Machine Agent Endpoints (`X-Agent-Key`)
 | Method | Route | Authentication Mechanism |
 |---|---|---|
-| `POST` | `/api/agent-commerce/discover` | Dedicated `X-Agent-Key` with constant-time HMAC check |
-| `GET` | `/api/agent-commerce/products/{id}` | Dedicated `X-Agent-Key` with constant-time HMAC check |
-| `POST` | `/api/agent-commerce/inventory/check` | Dedicated `X-Agent-Key` with constant-time HMAC check |
-| `POST` | `/api/agent-commerce/cart/items` | Dedicated `X-Agent-Key` with constant-time HMAC check |
-| `POST` | `/api/agent-commerce/orders` | Dedicated `X-Agent-Key` with constant-time HMAC check |
+| `POST` | `/api/agent-commerce/discover` | Dedicated `X-Agent-Key` with constant-time HMAC verification |
+| `GET` | `/api/agent-commerce/products/{id}` | Dedicated `X-Agent-Key` with constant-time HMAC verification |
+| `POST` | `/api/agent-commerce/inventory/check` | Dedicated `X-Agent-Key` with constant-time HMAC verification |
+| `POST` | `/api/agent-commerce/cart/items` | Dedicated `X-Agent-Key` with constant-time HMAC verification |
+| `POST` | `/api/agent-commerce/orders` | Dedicated `X-Agent-Key` with constant-time HMAC verification |
+| `POST` | `/api/agent-commerce/payments/initiate` | Dedicated `X-Agent-Key` with constant-time HMAC verification |
 
 > [!IMPORTANT]
-> Agent-to-Agent machine commerce is strictly decoupled from user JWT authentication. `X-Agent-Key` does NOT accept JWT tokens, and user endpoints do NOT accept `X-Agent-Key`.
+> Agent-to-Agent machine commerce is strictly decoupled from user JWT authentication. `X-Agent-Key` does NOT accept user JWT tokens, and user endpoints do NOT accept `X-Agent-Key`.
 
 ---
 
-## 5. Security & Ownership Rules
-1. **Header-Only Authorization**: Access tokens are accepted exclusively via the `Authorization: Bearer <token>` header (never via URL query params or JSON request bodies).
-2. **Stateless Tokens**: JWTs are cryptographically signed and verified without storing access tokens in the database.
-3. **Strict Ownership Enforcement**:
-   - `User A` accessing `User A` resource → `200 OK` / `201 Created`
-   - `User A` accessing `User B` resource → `403 Forbidden` ("Access denied")
-   - Unauthenticated request → `401 Unauthorized` ("Missing Authorization header")
-   - Forged/expired/invalid token → `401 Unauthorized` ("Invalid access token" / "Token has expired")
-4. **Authoritative Identity**: The authenticated user's UUID from the verified JWT `sub` claim is authoritative; client-supplied IDs in request payloads cannot override identity.
-5. **Phase 12 Guardrails**: Server-authoritative catalog pricing, inventory revalidation, and IDOR protections remain 100% active.
+## 6. Authentication Boundaries & Isolation (Phase 17E)
+
+The platform enforces strict cryptographic and architectural isolation between three independent authentication mechanisms:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                           AUTHENTICATION BOUNDARIES                              │
+├─────────────────────────┬───────────────────────────────┬────────────────────────┤
+│ Mechanism               │ Header                        │ Target Endpoints       │
+├─────────────────────────┼───────────────────────────────┼────────────────────────┤
+│ Human User Auth         │ Authorization: Bearer <JWT>   │ /api/cart/*            │
+│                         │                               │ /api/orders/*          │
+│                         │                               │ /api/dashboard/*       │
+│                         │                               │ /api/admin/*           │
+├─────────────────────────┼───────────────────────────────┼────────────────────────┤
+│ Machine Agent Commerce  │ X-Agent-Key: <key>            │ /api/agent-commerce/*  │
+├─────────────────────────┼───────────────────────────────┼────────────────────────┤
+│ Razorpay Webhook        │ X-Razorpay-Signature: <HMAC>  │ /api/payments/webhook  │
+└─────────────────────────┴───────────────────────────────┴────────────────────────┘
+```
+
+1. **User JWT (`Authorization: Bearer <JWT>`)**:
+   - Designed for human users (customers, merchants, and platform administrators).
+   - Validates user identity and role against the authoritative PostgreSQL database.
+   - **Agent Boundary**: A user JWT (even an admin JWT) is rejected with `401 Unauthorized` on `/api/agent-commerce/*`.
+
+2. **Machine-to-Machine Agent Key (`X-Agent-Key`)**:
+   - Designed for external automated buyer agents interacting directly with catalog discovery and automated ordering.
+   - Validated in constant time using `hmac.compare_digest`.
+   - **User Boundary**: An `X-Agent-Key` cannot substitute for a JWT; sending it to `/api/cart`, `/api/orders`, `/api/dashboard/*`, or `/api/admin/*` results in `401 Unauthorized` ("Missing Authorization header").
+
+3. **External Payment Webhook (`X-Razorpay-Signature: HMAC-SHA256`)**:
+   - Dedicated webhook endpoint `/api/payments/webhook` exclusively verifies cryptographic HMAC-SHA256 signatures generated with `RAZORPAY_WEBHOOK_SECRET`.
+   - Neither a User JWT nor an `X-Agent-Key` can authenticate or bypass webhook verification; requests without a valid HMAC signature return `400 Bad Request`.
+
+---
+
+## 7. Security & Guardrail Guarantees
+1. **Header-Only Authorization**: User access tokens are accepted exclusively via `Authorization: Bearer <token>`.
+2. **Authoritative Database Context**: Roles and identities are always re-validated against the database; claims inside the token payload are treated as advisory metadata.
+3. **Defense Against Privilege Escalation**:
+   - Client-supplied `role` during registration is discarded.
+   - Client-supplied `customer_id` or `role` in request bodies cannot override JWT context.
+   - Role modification requests are rejected.
+4. **Strict Mechanism Isolation**: Credentials from one boundary cannot be used to authenticate requests in another boundary.
+5. **Phase 12 Guardrails Intact**: Server-authoritative catalog pricing, inventory revalidation, and IDOR protections remain 100% active.
+6. **Zero Secrets in Responses/Logs**: Passwords, password hashes, JWT secrets, agent keys, and webhook secrets are never logged or returned in responses.

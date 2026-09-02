@@ -160,6 +160,36 @@ class AuditService:
         return logs, total_count
 
     @classmethod
+    def get_all_audit_logs(
+        cls,
+        db: Session,
+        event_type: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Tuple[List[AuditLog], int]:
+        """
+        Retrieves paginated platform-wide audit events across all customers, sorted newest first.
+        Strictly for administrative audits.
+        """
+        page = max(1, page)
+        page_size = min(max(1, page_size), 100)
+        offset = (page - 1) * page_size
+
+        query = select(AuditLog)
+        count_query = select(func.count(AuditLog.id))
+
+        if event_type:
+            query = query.where(AuditLog.event_type == event_type)
+            count_query = count_query.where(AuditLog.event_type == event_type)
+
+        query = query.order_by(AuditLog.created_at.desc()).offset(offset).limit(page_size)
+
+        logs = list(db.execute(query).scalars().all())
+        total_count = db.execute(count_query).scalar_one()
+
+        return logs, total_count
+
+    @classmethod
     def format_audit_response(cls, log: AuditLog) -> AuditLogResponse:
         """Formats AuditLog SQLAlchemy model into response schema."""
         return AuditLogResponse(

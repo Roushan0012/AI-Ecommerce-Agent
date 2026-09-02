@@ -6,13 +6,27 @@ from typing import Any, Dict, List
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.core.database import get_db, get_engine
-from app.models import Merchant, Product
+from app.core.security import hash_password
+from app.models import Merchant, Product, User, UserRole
 
 DEMO_MERCHANT_NAME = "AI Commerce Demo Store"
 DEMO_MERCHANT_DESCRIPTION = (
     "Flagship showcase store for smart electronics, audio equipment, "
     "and workspace accessories built for the AI Commerce Agent platform."
 )
+
+DEMO_USERS = [
+    {
+        "email": "merchant@example.com",
+        "password": "MerchantPassword123!",
+        "role": UserRole.MERCHANT.value,
+    },
+    {
+        "email": "admin@example.com",
+        "password": "AdminPassword123!",
+        "role": UserRole.ADMIN.value,
+    },
+]
 
 CATALOG_PRODUCTS: List[Dict[str, Any]] = [
     # 1. Audio Category
@@ -345,6 +359,22 @@ def seed_catalog(session: Session) -> Dict[str, Any]:
             )
             session.add(new_prod)
             products_created += 1
+
+    # 3. Seed demo accounts (merchant & admin) idempotently
+    for user_info in DEMO_USERS:
+        u_stmt = select(User).where(User.email == user_info["email"])
+        existing_u = session.execute(u_stmt).scalar_one_or_none()
+        if existing_u:
+            existing_u.role = user_info["role"]
+        else:
+            new_u = User(
+                id=uuid.uuid4(),
+                email=user_info["email"],
+                password_hash=hash_password(user_info["password"]),
+                role=user_info["role"],
+                is_active=True,
+            )
+            session.add(new_u)
 
     session.commit()
 

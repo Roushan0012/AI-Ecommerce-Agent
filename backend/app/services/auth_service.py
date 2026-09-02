@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.audit import AuditEventType
 from app.schemas.auth import Token, UserLoginRequest, UserRegisterRequest, UserResponse
 from app.services.audit_service import audit_service
@@ -23,6 +23,7 @@ class AuthService:
         - Validates password length and complexity
         - Enforces unique email constraint (rejects duplicates)
         - Hashes password with Argon2id (never stores plaintext)
+        - Always assigns safe default role: 'customer' (client cannot escalate)
         - Persists user to database
         """
         normalized_email = request.email.strip().lower()
@@ -42,6 +43,7 @@ class AuthService:
             id=uuid.uuid4(),
             email=normalized_email,
             password_hash=hashed_password,
+            role=UserRole.CUSTOMER.value,  # Strict customer role assignment
             is_active=True,
         )
 
@@ -56,7 +58,7 @@ class AuthService:
                 event_type=AuditEventType.USER_REGISTERED,
                 customer_id=new_user.id,
                 action="register_user",
-                payload={"email": normalized_email, "user_id": str(new_user.id)},
+                payload={"email": normalized_email, "user_id": str(new_user.id), "role": new_user.role},
                 status="success",
             )
         except Exception as audit_err:
@@ -95,8 +97,11 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Generate JWT access token with user UUID as subject
-        access_token = create_access_token(subject=str(user.id))
+        # Generate JWT access token with user UUID as subject and advisory role claim
+        access_token = create_access_token(
+            subject=str(user.id),
+            additional_claims={"role": user.role},
+        )
         expires_in = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
         # Log audit event

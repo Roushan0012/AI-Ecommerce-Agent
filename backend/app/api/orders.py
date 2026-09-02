@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_db, require_customer
 from app.models.user import User
 from app.schemas.order import (
     OrderCreateRequest,
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/orders", tags=["Orders"])
 )
 def create_order(
     payload: OrderCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """
@@ -49,7 +49,7 @@ def create_order(
 )
 def list_customer_orders(
     customer_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """
@@ -74,7 +74,7 @@ def list_customer_orders(
 def get_order_detail(
     customer_id: uuid.UUID,
     order_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """

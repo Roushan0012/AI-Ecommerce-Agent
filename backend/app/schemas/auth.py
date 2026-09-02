@@ -58,6 +58,7 @@ class UserResponse(BaseModel):
 
     id: uuid.UUID = Field(..., description="Unique user UUID")
     email: str = Field(..., description="Normalized user email")
+    role: str = Field("customer", description="User authorization role (customer, merchant, admin)")
     is_active: bool = Field(..., description="Whether user account is active")
     created_at: datetime = Field(..., description="Account creation UTC timestamp")
     updated_at: datetime = Field(..., description="Account last update UTC timestamp")
@@ -77,6 +78,7 @@ class TokenPayload(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     sub: str = Field(..., description="Subject identifier (user UUID or email)")
+    role: Optional[str] = Field(None, description="Optional role claim (authoritative source remains database)")
     exp: int = Field(..., description="Expiration UTC timestamp in epoch seconds")
     iat: int = Field(..., description="Issued at UTC timestamp in epoch seconds")
     nbf: Optional[int] = Field(None, description="Not before UTC timestamp in epoch seconds")

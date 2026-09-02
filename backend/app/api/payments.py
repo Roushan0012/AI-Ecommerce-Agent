@@ -2,7 +2,7 @@ import json
 import logging
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_db, require_customer
 from app.models.user import User
 from app.schemas.payment import (
     CreatePaymentOrderRequest,
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/payments", tags=["Payments"])
 )
 def create_payment_order(
     payload: CreatePaymentOrderRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """

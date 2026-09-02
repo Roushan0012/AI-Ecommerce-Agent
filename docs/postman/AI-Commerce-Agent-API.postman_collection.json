@@ -25,6 +25,16 @@
             "key": "auth_token",
             "value": "",
             "type": "string"
+        },
+        {
+            "key": "merchant_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "admin_token",
+            "value": "",
+            "type": "string"
         }
     ],
     "item": [
@@ -141,6 +151,7 @@
                             "        pm.expect(jsonData).to.have.property('email');",
                             "        pm.expect(jsonData.email).to.eql(\"postman.auth@example.com\");",
                             "        pm.expect(jsonData.is_active).to.eql(true);",
+                            "        pm.expect(jsonData.role).to.eql(\"customer\");",
                             "    });",
                             "",
                             "    pm.test(\"Sensitive credentials not exposed\", function () {",
@@ -253,6 +264,116 @@
                     ]
                 },
                 "description": "Authenticates a registered user and returns a signed JWT access token."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - Merchant Login",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains access_token and bearer type\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"access_token\");",
+                            "    pm.expect(jsonData).to.have.property(\"token_type\");",
+                            "    pm.expect(jsonData.token_type.toLowerCase()).to.eql(\"bearer\");",
+                            "});",
+                            "pm.collectionVariables.set(\"merchant_token\", jsonData.access_token);"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"email\": \"merchant@example.com\",\n    \"password\": \"MerchantPassword123!\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/auth/login",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "auth",
+                        "login"
+                    ]
+                },
+                "description": "Authenticates demo merchant user and stores merchant_token for dashboard requests."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - Admin Login",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains access_token and bearer type\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"access_token\");",
+                            "    pm.expect(jsonData).to.have.property(\"token_type\");",
+                            "    pm.expect(jsonData.token_type.toLowerCase()).to.eql(\"bearer\");",
+                            "});",
+                            "pm.collectionVariables.set(\"admin_token\", jsonData.access_token);"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"email\": \"admin@example.com\",\n    \"password\": \"AdminPassword123!\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/auth/login",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "auth",
+                        "login"
+                    ]
+                },
+                "description": "Authenticates demo admin user and stores admin_token for admin requests."
             },
             "response": []
         },
@@ -1653,7 +1774,13 @@
             ],
             "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{merchant_token}}",
+                        "type": "text"
+                    }
+                ],
                 "url": {
                     "raw": "http://127.0.0.1:8000/api/dashboard/overview",
                     "protocol": "http",
@@ -1698,7 +1825,13 @@
             ],
             "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{merchant_token}}",
+                        "type": "text"
+                    }
+                ],
                 "url": {
                     "raw": "http://127.0.0.1:8000/api/dashboard/orders?page=1&page_size=10",
                     "protocol": "http",
@@ -1753,7 +1886,13 @@
             ],
             "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{merchant_token}}",
+                        "type": "text"
+                    }
+                ],
                 "url": {
                     "raw": "http://127.0.0.1:8000/api/dashboard/activity?limit=10",
                     "protocol": "http",
@@ -2488,6 +2627,406 @@
                     ]
                 },
                 "description": "Verifies that User A cannot access User B's cart, returning 403 Forbidden."
+            },
+            "response": []
+        },
+        {
+            "name": "Dashboard - Customer Access Forbidden (403)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 403\", function () {",
+                            "    pm.response.to.have.status(403);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Detail specifies insufficient role permissions\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"detail\");",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"forbidden\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/dashboard/overview",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "dashboard",
+                        "overview"
+                    ]
+                },
+                "description": "Verifies that a customer JWT receives 403 Forbidden when accessing merchant dashboard."
+            },
+            "response": []
+        },
+        {
+            "name": "Dashboard - Unauthenticated Access Denied (401)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 401\", function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/dashboard/overview",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "dashboard",
+                        "overview"
+                    ]
+                },
+                "description": "Verifies that missing credentials to merchant dashboard receives 401 Unauthorized."
+            },
+            "response": []
+        },
+        {
+            "name": "Admin - System Status (200)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Admin status response structure is valid\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"status\");",
+                            "    pm.expect(jsonData.status).to.eql(\"ok\");",
+                            "    pm.expect(jsonData).to.have.property(\"admin_user\");",
+                            "    pm.expect(jsonData.admin_user).to.eql(\"admin@example.com\");",
+                            "    pm.expect(jsonData).to.have.property(\"users_by_role\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/admin/system/status",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "admin",
+                        "system",
+                        "status"
+                    ]
+                },
+                "description": "Verifies that an administrator can query admin system status (200 OK)."
+            },
+            "response": []
+        },
+        {
+            "name": "Admin - Customer Access Forbidden (403)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 403\", function () {",
+                            "    pm.response.to.have.status(403);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/admin/system/status",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "admin",
+                        "system",
+                        "status"
+                    ]
+                },
+                "description": "Verifies that an ordinary customer cannot access admin endpoints (403 Forbidden)."
+            },
+            "response": []
+        },
+        {
+            "name": "Admin - Merchant Access Forbidden (403)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 403\", function () {",
+                            "    pm.response.to.have.status(403);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{merchant_token}}",
+                        "type": "text"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/admin/system/status",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "admin",
+                        "system",
+                        "status"
+                    ]
+                },
+                "description": "Verifies that a merchant cannot access admin endpoints (403 Forbidden)."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - User JWT Cannot Authenticate Agent Commerce (401)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 401\", function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Detail specifies missing or invalid agent key\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"detail\");",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"x-agent-key\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"query\": \"headphones\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "discover"
+                    ]
+                },
+                "description": "Verifies that passing a customer User JWT without X-Agent-Key is rejected with 401."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - Admin JWT Cannot Authenticate Agent Commerce (401)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 401\", function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Detail specifies missing or invalid agent key\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"detail\");",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"x-agent-key\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{admin_token}}",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"query\": \"headphones\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "discover"
+                    ]
+                },
+                "description": "Verifies that passing an admin User JWT without X-Agent-Key is rejected with 401."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - X-Agent-Key Cannot Substitute for User JWT (401)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 401\", function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Detail specifies missing authorization header\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"detail\");",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"authorization\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026",
+                        "type": "text"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart"
+                    ]
+                },
+                "description": "Verifies that passing X-Agent-Key to a JWT-protected endpoint without Authorization header is rejected with 401."
             },
             "response": []
         }

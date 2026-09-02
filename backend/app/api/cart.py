@@ -2,7 +2,7 @@ import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_user, get_db
+from app.core.dependencies import get_db, require_customer
 from app.models.user import User
 from app.schemas.cart import (
     CartCreateRequest,
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/cart", tags=["Cart"])
 )
 def create_or_get_cart(
     payload: Optional[CartCreateRequest] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """
@@ -48,7 +48,7 @@ def create_or_get_cart(
 )
 def get_cart(
     customer_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """
@@ -78,7 +78,7 @@ def get_cart(
 def add_cart_item(
     customer_id: uuid.UUID,
     payload: CartItemCreateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """
@@ -109,7 +109,7 @@ def update_cart_item(
     customer_id: uuid.UUID,
     product_id: uuid.UUID,
     payload: CartItemUpdateRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """
@@ -139,7 +139,7 @@ def update_cart_item(
 def remove_cart_item(
     customer_id: uuid.UUID,
     product_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_customer),
     db: Session = Depends(get_db),
 ):
     """

@@ -23,11 +23,11 @@ def set_mock_ai_provider_for_tests():
 @pytest.fixture(autouse=True)
 def handle_test_auth_dependencies(request):
     """
-    Ensures Phase 17 tests execute strict real JWT validation while legacy Phase 1-16
-    test suites seamlessly resolve active test users.
+    Ensures Phase 17 tests execute strict real JWT validation and role checks
+    while legacy Phase 1-16 test suites seamlessly resolve active test users.
     """
-    # If this is a Phase 17 JWT auth test, ensure NO dependency override is present
-    if "test_jwt_protected" in request.node.nodeid or "test_auth" in request.node.nodeid:
+    # If this is a Phase 17 JWT auth, role, or A2A boundary test, ensure NO dependency override is present
+    if any(k in request.node.nodeid for k in ["test_jwt_protected", "test_auth", "test_role", "test_authorization", "test_a2a"]):
         app.dependency_overrides.pop(get_current_user, None)
         yield
         app.dependency_overrides.pop(get_current_user, None)
@@ -83,9 +83,14 @@ def handle_test_auth_dependencies(request):
                 id=target_uuid,
                 email=f"user_{target_uuid}@test.local",
                 password_hash="$argon2id$v=19$m=65536,t=3,p=4$mock$hash",
+                role="merchant",
                 is_active=True,
             )
             db.add(user)
+            db.commit()
+            db.refresh(user)
+        elif user.role != "merchant" and (request.url.path.startswith("/api/dashboard") or request.url.path.startswith("/api/admin")):
+            user.role = "merchant"
             db.commit()
             db.refresh(user)
         return user

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.core.dependencies import get_db, require_merchant
+from app.models.user import User
 from app.schemas.dashboard import (
     DashboardActivityResponse,
     DashboardOrdersResponse,
@@ -8,7 +9,11 @@ from app.schemas.dashboard import (
 )
 from app.services.dashboard_service import dashboard_service
 
-router = APIRouter(prefix="/api/dashboard", tags=["Merchant Dashboard"])
+router = APIRouter(
+    prefix="/api/dashboard",
+    tags=["Merchant Dashboard"],
+    dependencies=[Depends(require_merchant)],
+)
 
 
 @router.get(
@@ -18,6 +23,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["Merchant Dashboard"])
     summary="Get Merchant Dashboard Overview Metrics",
 )
 def get_dashboard_overview(
+    current_user: User = Depends(require_merchant),
     db: Session = Depends(get_db),
 ):
     """

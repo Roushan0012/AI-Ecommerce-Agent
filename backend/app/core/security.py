@@ -13,7 +13,7 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -241,4 +241,42 @@ def get_current_user(
         )
 
     return user
+
+
+# ==============================================================================
+# 4. Role-Based Authorization Dependencies (Phase 17D)
+# ==============================================================================
+
+def require_roles(*allowed_roles: str):
+    """
+    Factory creating a reusable FastAPI authorization dependency that enforces
+    the authenticated user possesses at least one of the specified allowed roles.
+
+    Security guarantees:
+    - Depends on get_current_user: unauthenticated, expired, or forged JWT returns 401 Unauthorized.
+    - Validates the authoritative database user record (never trusts client claims).
+    - If user role is insufficient: returns 403 Forbidden without leaking sensitive internals.
+    - If role is permitted: returns authoritative User model instance.
+    """
+    allowed_set = set(allowed_roles)
+
+    def role_dependency(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in allowed_set:
+            logger.warning(
+                f"Authorization denied for user '{current_user.id}' with role '{current_user.role}'. "
+                f"Required role in: {allowed_set}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: insufficient role permissions.",
+            )
+        return current_user
+
+    return role_dependency
+
+
+# Pre-configured role authorization dependencies
+require_customer = require_roles(UserRole.CUSTOMER.value, UserRole.MERCHANT.value, UserRole.ADMIN.value)
+require_merchant = require_roles(UserRole.MERCHANT.value, UserRole.ADMIN.value)
+require_admin = require_roles(UserRole.ADMIN.value)
 

@@ -72,3 +72,16 @@ npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 | 23 | **Orders - Get Single Order Detail** | `GET` | `/api/orders/:customer_id/:order_id` | Status 200, returns order detail matching customer and order ID |
 | 24 | **Payments - Create Razorpay Test Order** | `POST` | `/api/payments/create-order` | Status 200, creates Razorpay Test Mode checkout order with authoritative amount in paise |
 | 25 | **Payments - Razorpay Webhook Verification** | `POST` | `/api/payments/webhook` | Status 200, verifies HMAC-SHA256 signature, validates payment/amount, marks order as paid |
+| 26 | **Audit - Get Customer Audit Logs** | `GET` | `/api/audit/:customer_id` | Status 200, retrieves chronological audit events for customer |
+| 27 | **Auth - User Registration** | `POST` | `/api/auth/register` | Status 201/409, registers user with safe customer role default |
+| 28 | **Auth - User Login** | `POST` | `/api/auth/login` | Status 200, authenticates customer and saves `auth_token` |
+| 29 | **Auth - Merchant Login** | `POST` | `/api/auth/login` | Status 200, authenticates merchant and saves `merchant_token` |
+| 30 | **Auth - Admin Login** | `POST` | `/api/auth/login` | Status 200, authenticates admin and saves `admin_token` |
+| 31 | **Dashboard - Overview Metrics** | `GET` | `/api/dashboard/overview` | Status 200, requires `merchant_token` (`require_merchant`) |
+| 32 | **Dashboard - Recent Orders** | `GET` | `/api/dashboard/orders` | Status 200, requires `merchant_token` (`require_merchant`) |
+| 33 | **Dashboard - Recent Activity** | `GET` | `/api/dashboard/activity` | Status 200, requires `merchant_token` (`require_merchant`) |
+| 34-39 | **Agent Commerce Endpoints** | Various | `/api/agent-commerce/*` | Status 200/201, strictly requires `X-Agent-Key` header |
+| 40-44 | **Adversarial Security Tests** | Various | Various | Price tampering discarded, negative quantity rejected, cross-user checkout blocked |
+| 45-51 | **Role Authorization Tests** | Various | `/api/dashboard/*`, `/api/admin/*` | Verifies 401 unauthenticated, 403 customer access to merchant/admin, and 200 admin access |
+| 52-54 | **A2A Boundary Isolation Tests** | Various | `/api/agent-commerce/*`, `/api/cart` | Verifies User/Admin JWT cannot access Agent Commerce (401) and X-Agent-Key cannot access User Cart (401) |
+
