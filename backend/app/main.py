@@ -1,5 +1,12 @@
-from fastapi import FastAPI, HTTPException, status
+import logging
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.admin import router as admin_router
 from app.api.agent import router as agent_router
 from app.api.agent_commerce import router as agent_commerce_router
@@ -10,29 +17,65 @@ from app.api.dashboard import router as dashboard_router
 from app.api.orders import router as orders_router
 from app.api.payments import router as payments_router
 from app.api.products import router as products_router
+from app.core.config import settings, ConfigurationError
 from app.core.database import check_database_connection
+
+logger = logging.getLogger("app.main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.is_production:
+        settings.validate_production_config()
+    yield
+
 
 app = FastAPI(
     title="AI Commerce Agent API",
     description="Backend API for Razorpay AI Buildathon Track 01 - AI Commerce Agent",
     version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if (not settings.is_production or os.getenv("ENABLE_DOCS", "false").lower() == "true") else None,
+    redoc_url="/redoc" if (not settings.is_production or os.getenv("ENABLE_DOCS", "false").lower() == "true") else None,
+    openapi_url="/openapi.json" if (not settings.is_production or os.getenv("ENABLE_DOCS", "false").lower() == "true") else None,
+    debug=settings.DEBUG,
+    lifespan=lifespan,
 )
-
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=settings.validate_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return await request_validation_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled server error on {request.method} {request.url.path}: {exc}", exc_info=settings.DEBUG)
+    if settings.is_production:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "An internal server error occurred. Please contact support."},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": str(exc)},
+    )
 
 # Include API Routers
 app.include_router(products_router)

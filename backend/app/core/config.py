@@ -1,5 +1,8 @@
+import json
 import os
+import sys
 from pathlib import Path
+from typing import List
 from dotenv import load_dotenv
 
 # Load .env from backend directory if it exists
@@ -11,7 +14,83 @@ else:
     load_dotenv(override=True)
 
 
+class ConfigurationError(ValueError):
+    """Raised when environment or production security configuration is invalid."""
+    pass
+
+
 class Settings:
+    # Known insecure dev/test placeholders that MUST NOT be used in production
+    INSECURE_DEV_JWT_SECRET = "dev_jwt_secret_key_change_in_production_min_32_chars"
+    INSECURE_DEV_AGENT_KEY = "ag_live_key_test_commerce_2026"
+    INSECURE_DEV_AGENT_KEY_PLACEHOLDER = "ag_live_key_placeholder"
+    INSECURE_DEV_RAZORPAY_KEY_ID = "rzp_test_placeholder"
+    INSECURE_DEV_RAZORPAY_WEBHOOK_SECRET = "test_webhook_secret_key_123"
+
+    # Environment
+    @property
+    def ENVIRONMENT(self) -> str:
+        env = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "")).lower().strip()
+        if env in ("development", "test", "production"):
+            return env
+        if "pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST"):
+            return "test"
+        return "development"
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
+
+    @property
+    def is_development(self) -> bool:
+        return self.ENVIRONMENT == "development"
+
+    @property
+    def is_test(self) -> bool:
+        return self.ENVIRONMENT == "test"
+
+    @property
+    def DEBUG(self) -> bool:
+        # Debug is strictly disabled in production
+        if self.is_production:
+            return False
+        val = os.getenv("DEBUG", "true" if self.is_development else "false").lower().strip()
+        return val in ("true", "1", "yes", "t")
+
+    # CORS Configuration
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        raw = os.getenv("CORS_ORIGINS", "")
+        if raw:
+            raw = raw.strip()
+            if raw.startswith("[") and raw.endswith("]"):
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if item]
+                except Exception:
+                    pass
+            return [origin.strip() for origin in raw.split(",") if origin.strip()]
+        # Safe default development & test origins
+        return [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ]
+
+    def validate_cors_origins(self) -> List[str]:
+        origins = self.CORS_ORIGINS
+        if self.is_production:
+            if not origins:
+                raise ConfigurationError(
+                    "Production CORS misconfiguration: CORS_ORIGINS must specify at least one trusted domain."
+                )
+            if "*" in origins:
+                raise ConfigurationError(
+                    "Insecure CORS configuration: Wildcard origin '*' is forbidden in production when credentials are enabled."
+                )
+        return origins
+
+    # Database
     @property
     def DATABASE_URL(self) -> str:
         return os.getenv("DATABASE_URL", "")
@@ -23,6 +102,16 @@ class Settings:
     @property
     def SUPABASE_PUBLISHABLE_KEY(self) -> str:
         return os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
+
+    def get_database_url(self) -> str:
+        url = self.DATABASE_URL
+        if not url:
+            raise ValueError(
+                "DATABASE_URL environment variable is missing. Please configure DATABASE_URL in your .env file."
+            )
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
 
     # AI Configuration
     @property
@@ -41,10 +130,10 @@ class Settings:
     def AI_BASE_URL(self) -> str:
         return os.getenv("AI_BASE_URL", "")
 
-    # Razorpay Configuration (Test Mode)
+    # Razorpay Configuration (Test Mode safe defaults in dev/test)
     @property
     def RAZORPAY_KEY_ID(self) -> str:
-        return os.getenv("RAZORPAY_KEY_ID", "rzp_test_placeholder")
+        return os.getenv("RAZORPAY_KEY_ID", "rzp_test_placeholder" if not self.is_production else "")
 
     @property
     def RAZORPAY_KEY_SECRET(self) -> str:
@@ -56,17 +145,26 @@ class Settings:
 
     @property
     def RAZORPAY_WEBHOOK_SECRET(self) -> str:
-        return os.getenv("RAZORPAY_WEBHOOK_SECRET", "test_webhook_secret_key_123")
+        return os.getenv(
+            "RAZORPAY_WEBHOOK_SECRET",
+            "test_webhook_secret_key_123" if not self.is_production else "",
+        )
 
     # Agent-to-Agent Commerce Configuration (Phase 15)
     @property
     def COMMERCE_AGENT_KEY(self) -> str:
-        return os.getenv("COMMERCE_AGENT_KEY", "ag_live_key_test_commerce_2026")
+        return os.getenv(
+            "COMMERCE_AGENT_KEY",
+            "ag_live_key_test_commerce_2026" if not self.is_production else "",
+        )
 
     # JWT Authentication Configuration (Phase 17A)
     @property
     def JWT_SECRET_KEY(self) -> str:
-        return os.getenv("JWT_SECRET_KEY", "dev_jwt_secret_key_change_in_production_min_32_chars")
+        return os.getenv(
+            "JWT_SECRET_KEY",
+            "dev_jwt_secret_key_change_in_production_min_32_chars" if not self.is_production else "",
+        )
 
     @property
     def JWT_ALGORITHM(self) -> str:
@@ -79,15 +177,61 @@ class Settings:
         except ValueError:
             return 60
 
-    def get_database_url(self) -> str:
-        url = self.DATABASE_URL
-        if not url:
-            raise ValueError(
-                "DATABASE_URL environment variable is missing. Please configure DATABASE_URL in your .env file."
+    # Production Configuration Validation
+    def validate_production_config(self) -> None:
+        """
+        Validates that all critical production configuration and secret parameters are explicitly provided
+        and not using insecure development defaults.
+
+        Raises ConfigurationError listing missing variable names.
+        Never prints or exposes secret values.
+        """
+        missing_or_insecure = []
+
+        # 1. Database
+        db_url = self.DATABASE_URL.strip()
+        if not db_url:
+            missing_or_insecure.append("DATABASE_URL (missing)")
+        elif "sqlite" in db_url.lower():
+            missing_or_insecure.append("DATABASE_URL (SQLite is not permitted in production)")
+
+        # 2. JWT Secret
+        jwt_secret = os.getenv("JWT_SECRET_KEY", "").strip()
+        if not jwt_secret or jwt_secret == self.INSECURE_DEV_JWT_SECRET or len(jwt_secret) < 32:
+            missing_or_insecure.append("JWT_SECRET_KEY (must be set with at least 32 characters)")
+
+        # 3. Commerce Agent Key
+        agent_key = os.getenv("COMMERCE_AGENT_KEY", "").strip()
+        if (
+            not agent_key
+            or agent_key in (self.INSECURE_DEV_AGENT_KEY, self.INSECURE_DEV_AGENT_KEY_PLACEHOLDER)
+            or len(agent_key) < 16
+        ):
+            missing_or_insecure.append("COMMERCE_AGENT_KEY (must be set with at least 16 characters)")
+
+        # 4. Razorpay Credentials
+        rzp_key_id = os.getenv("RAZORPAY_KEY_ID", "").strip()
+        if not rzp_key_id or rzp_key_id == self.INSECURE_DEV_RAZORPAY_KEY_ID:
+            missing_or_insecure.append("RAZORPAY_KEY_ID (must be configured with production key)")
+
+        rzp_key_secret = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+        if not rzp_key_secret:
+            missing_or_insecure.append("RAZORPAY_KEY_SECRET (missing)")
+
+        rzp_webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()
+        if not rzp_webhook_secret or rzp_webhook_secret == self.INSECURE_DEV_RAZORPAY_WEBHOOK_SECRET:
+            missing_or_insecure.append("RAZORPAY_WEBHOOK_SECRET (must be configured with production webhook secret)")
+
+        # 5. CORS Origins
+        try:
+            self.validate_cors_origins()
+        except ConfigurationError as e:
+            missing_or_insecure.append(f"CORS_ORIGINS ({str(e)})")
+
+        if missing_or_insecure:
+            raise ConfigurationError(
+                f"Production configuration validation failed. Critical parameters missing or insecure: {missing_or_insecure}."
             )
-        if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql://", 1)
-        return url
 
 
 settings = Settings()
