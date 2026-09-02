@@ -1,7 +1,8 @@
 import uuid
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.core.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.order import (
     OrderCreateRequest,
     OrderListResponse,
@@ -20,15 +21,18 @@ router = APIRouter(prefix="/api/orders", tags=["Orders"])
 )
 def create_order(
     payload: OrderCreateRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Creates a new Order by converting the customer's active cart.
-    - Validates authoritative prices and inventory.
-    - Captures historical price snapshots in OrderItems.
-    - Marks cart as converted.
-    - Initial order status is set to 'pending_payment'.
+    Creates a new Order by converting the authenticated customer's active cart.
+    Enforces ownership and server-authoritative pricing and inventory constraints.
     """
+    if payload.customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot create order for another user.",
+        )
     order = order_service.create_order_from_cart(
         db,
         customer_id=payload.customer_id,
@@ -45,11 +49,18 @@ def create_order(
 )
 def list_customer_orders(
     customer_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Retrieves all orders placed by the customer, sorted by creation date descending.
+    Retrieves all orders placed by the authenticated customer.
+    Enforces ownership.
     """
+    if customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to these orders.",
+        )
     orders = order_service.get_customer_orders(db, customer_id=customer_id)
     return order_service.format_order_list_response(orders)
 
@@ -63,11 +74,18 @@ def list_customer_orders(
 def get_order_detail(
     customer_id: uuid.UUID,
     order_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Retrieves a specific order for the given customer. Returns 404 if not found or belongs to another customer.
+    Retrieves a specific order for the authenticated customer.
+    Enforces ownership.
     """
+    if customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this order.",
+        )
     order = order_service.get_customer_order_by_id(
         db, customer_id=customer_id, order_id=order_id
     )

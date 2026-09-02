@@ -45,6 +45,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 16** | Adversarial Security Regression Suite & Verification | **Complete** |
 | **Phase 17A** | JWT Authentication Foundation & Argon2 Hashing | **Complete** |
 | **Phase 17B** | User Registration & Login Endpoints | **Complete** |
+| **Phase 17C** | JWT Protected APIs & Ownership Verification | **Complete** |
 
 ---
 

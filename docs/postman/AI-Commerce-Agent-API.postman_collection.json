@@ -1,2274 +1,2495 @@
 {
-	"info": {
-		"_postman_id": "a92c47c7-5e1d-4eb4-b9ea-44a706b85c12",
-		"name": "AI Commerce Agent API",
-		"description": "Postman API Collection for Razorpay AI Buildathon Track 01 - AI Commerce Agent",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"variable": [
-		{
-			"key": "first_product_id",
-			"value": "465206d3-bd4d-4f9f-b705-010670ab4006",
-			"type": "string"
-		},
-		{
-			"key": "customer_id",
-			"value": "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
-			"type": "string"
-		},
-		{
-			"key": "created_order_id",
-			"value": "",
-			"type": "string"
-		}
-	],
-	"item": [
-		{
-			"name": "Health Check",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Response contains status = ok\", function () {",
-							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.status).to.eql(\"ok\");",
-							"});",
-							"",
-							"pm.test(\"Response contains service = ai-commerce-agent-api\", function () {",
-							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.service).to.eql(\"ai-commerce-agent-api\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/health",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"health"
-					]
-				},
-				"description": "Health check endpoint verifying API service availability."
-			},
-			"response": []
-		},
-		{
-			"name": "Database Health Check",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"Response contains status = ok\", function () {",
-							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.status).to.eql(\"ok\");",
-							"});",
-							"",
-							"pm.test(\"Response contains database = connected\", function () {",
-							"    var jsonData = pm.response.json();",
-							"    pm.expect(jsonData.database).to.eql(\"connected\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/health/database",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"health",
-						"database"
-					]
-				},
-				"description": "Database health check endpoint verifying Supabase PostgreSQL connectivity."
-			},
-			"response": []
-		},
-		{
-			"name": "AI Agent - Understand Shopping Intent",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Response contains message and structured intent\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"message\");",
-							"    pm.expect(jsonData).to.have.property(\"intent\");",
-							"});",
-							"",
-							"pm.test(\"Intent correctly extracted product_search and price bound\", function () {",
-							"    pm.expect(jsonData.intent.intent).to.eql(\"product_search\");",
-							"    pm.expect(jsonData.intent.category).to.eql(\"Audio\");",
-							"    pm.expect(parseFloat(jsonData.intent.max_price)).to.eql(5000);",
-							"    pm.expect(jsonData.intent.currency).to.eql(\"INR\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"message\": \"I need wireless headphones under ₹5000\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent/understand",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent",
-						"understand"
-					]
-				},
-				"description": "AI Agent endpoint for understanding customer shopping requests and converting them to structured shopping intents."
-			},
-			"response": []
-		},
-		{
-			"name": "AI Agent - Search Products",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Response contains intent, message, and matching items\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"message\");",
-							"    pm.expect(jsonData).to.have.property(\"intent\");",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"    pm.expect(jsonData.total).to.be.at.least(1);",
-							"});",
-							"",
-							"pm.test(\"Returned products match earbuds and budget\", function () {",
-							"    var hasMatch = jsonData.items.some(function(item) {",
-							"        return item.category === \"Audio\" && parseFloat(item.price) <= 5000;",
-							"    });",
-							"    pm.expect(hasMatch).to.be.true;",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"message\": \"Show me wireless earbuds under ₹5000\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent/search",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent",
-						"search"
-					]
-				},
-				"description": "End-to-end AI Agent product discovery endpoint translating natural language query into catalog search results."
-			},
-			"response": []
-		},
-		{
-			"name": "AI Agent - Recommend Products",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Response contains recommendations with scores and explanations\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"message\");",
-							"    pm.expect(jsonData).to.have.property(\"intent\");",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"    pm.expect(jsonData.total).to.be.at.least(1);",
-							"    pm.expect(jsonData.items[0]).to.have.property(\"score\");",
-							"    pm.expect(jsonData.items[0]).to.have.property(\"reason\");",
-							"    pm.expect(jsonData.items[0]).to.have.property(\"product\");",
-							"    pm.expect(jsonData.items[0].score).to.be.within(0.0, 1.0);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"message\": \"I need wireless headphones under ₹5000 for travelling\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent/recommend",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent",
-						"recommend"
-					]
-				},
-				"description": "AI Agent recommendation engine endpoint scoring and ranking catalog candidates with explainability reasons."
-			},
-			"response": []
-		},
-		{
-			"name": "AI Agent - Growth (Upsell & Cross-sell)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Response contains primary products, upsells, and cross-sells\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"message\");",
-							"    pm.expect(jsonData).to.have.property(\"intent\");",
-							"    pm.expect(jsonData).to.have.property(\"primary_products\");",
-							"    pm.expect(jsonData).to.have.property(\"upsell\");",
-							"    pm.expect(jsonData).to.have.property(\"cross_sell\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"});",
-							"",
-							"pm.test(\"Growth items contain valid scores and explainable reasons\", function () {",
-							"    if (jsonData.cross_sell && jsonData.cross_sell.length > 0) {",
-							"        var cs = jsonData.cross_sell[0];",
-							"        pm.expect(cs.type).to.eql(\"cross_sell\");",
-							"        pm.expect(cs).to.have.property(\"product\");",
-							"        pm.expect(cs).to.have.property(\"reason\");",
-							"        pm.expect(cs.score).to.be.within(0.0, 1.0);",
-							"    }",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"message\": \"Show me mechanical keyboards\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent/growth",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent",
-						"growth"
-					]
-				},
-				"description": "AI Agent Upsell & Cross-sell growth engine endpoint generating upgrade and companion accessory opportunities."
-			},
-			"response": []
-		},
-		{
-			"name": "List Products (Default)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Response contains pagination fields\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"    pm.expect(jsonData).to.have.property(\"page\");",
-							"    pm.expect(jsonData).to.have.property(\"page_size\");",
-							"    pm.expect(jsonData.total).to.be.at.least(12);",
-							"});",
-							"",
-							"if (jsonData.items && jsonData.items.length > 0) {",
-							"    pm.collectionVariables.set(\"first_product_id\", jsonData.items[0].id);",
-							"}"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products"
-					]
-				},
-				"description": "Fetch list of active products with default pagination."
-			},
-			"response": []
-		},
-		{
-			"name": "Get Product Detail",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Product detail structure is complete\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"id\");",
-							"    pm.expect(jsonData).to.have.property(\"name\");",
-							"    pm.expect(jsonData).to.have.property(\"sku\");",
-							"    pm.expect(jsonData).to.have.property(\"price\");",
-							"    pm.expect(jsonData).to.have.property(\"currency\");",
-							"    pm.expect(jsonData).to.have.property(\"inventory\");",
-							"    pm.expect(jsonData).to.have.property(\"attributes\");",
-							"    pm.expect(jsonData).to.have.property(\"is_active\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products/{{first_product_id}}",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products",
-						"{{first_product_id}}"
-					]
-				},
-				"description": "Fetch detailed information for a single product by UUID."
-			},
-			"response": []
-		},
-		{
-			"name": "Filter Products by Category (Audio)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"All returned items belong to Audio category\", function () {",
-							"    pm.expect(jsonData.total).to.be.at.least(1);",
-							"    jsonData.items.forEach(function(item) {",
-							"        pm.expect(item.category).to.eql(\"Audio\");",
-							"    });",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products?category=Audio",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products"
-					],
-					"query": [
-						{
-							"key": "category",
-							"value": "Audio"
-						}
-					]
-				},
-				"description": "Filter products belonging to the Audio category."
-			},
-			"response": []
-		},
-		{
-			"name": "Filter Products by Price Range",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"All items are within price range 5000 to 20000\", function () {",
-							"    jsonData.items.forEach(function(item) {",
-							"        var price = parseFloat(item.price);",
-							"        pm.expect(price).to.be.at.least(5000);",
-							"        pm.expect(price).to.be.at.most(20000);",
-							"    });",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products?min_price=5000&max_price=20000",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products"
-					],
-					"query": [
-						{
-							"key": "min_price",
-							"value": "5000"
-						},
-						{
-							"key": "max_price",
-							"value": "20000"
-						}
-					]
-				},
-				"description": "Filter products within min_price and max_price bounds."
-			},
-			"response": []
-		},
-		{
-			"name": "Search Products (headphone)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Search results match keyword\", function () {",
-							"    pm.expect(jsonData.total).to.be.at.least(1);",
-							"    var found = jsonData.items.some(function(item) {",
-							"        return item.name.toLowerCase().includes(\"headphone\") || ",
-							"               (item.description && item.description.toLowerCase().includes(\"headphone\"));",
-							"    });",
-							"    pm.expect(found).to.be.true;",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products?search=headphone",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products"
-					],
-					"query": [
-						{
-							"key": "search",
-							"value": "headphone"
-						}
-					]
-				},
-				"description": "Search products by keyword in name or description."
-			},
-			"response": []
-		},
-		{
-			"name": "Filter Available Products",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"All returned products are active and in stock\", function () {",
-							"    jsonData.items.forEach(function(item) {",
-							"        pm.expect(item.is_active).to.be.true;",
-							"        pm.expect(item.inventory).to.be.above(0);",
-							"    });",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products?available=true",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products"
-					],
-					"query": [
-						{
-							"key": "available",
-							"value": "true"
-						}
-					]
-				},
-				"description": "Filter products to only return active items with positive inventory."
-			},
-			"response": []
-		},
-		{
-			"name": "Paginate Products (page=1, page_size=5)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Page size matches requested limit\", function () {",
-							"    pm.expect(jsonData.page).to.eql(1);",
-							"    pm.expect(jsonData.page_size).to.eql(5);",
-							"    pm.expect(jsonData.items.length).to.eql(5);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products?page=1&page_size=5",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products"
-					],
-					"query": [
-						{
-							"key": "page",
-							"value": "1"
-						},
-						{
-							"key": "page_size",
-							"value": "5"
-						}
-					]
-				},
-				"description": "Paginate product catalog with page and page_size bounds."
-			},
-			"response": []
-		},
-		{
-			"name": "Get Product Detail (Nonexistent 404)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 404\", function () {",
-							"    pm.response.to.have.status(404);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Detail message indicates product not found\", function () {",
-							"    pm.expect(jsonData.detail).to.eql(\"Product not found\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/products/00000000-0000-0000-0000-000000000000",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"products",
-						"00000000-0000-0000-0000-000000000000"
-					]
-				},
-				"description": "Verify 404 Not Found is returned for non-existent product UUID."
-			},
-			"response": []
-		},
-		{
-			"name": "Cart - Create or Get Cart",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Response contains cart structure\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"id\");",
-							"    pm.expect(jsonData).to.have.property(\"customer_id\");",
-							"    pm.expect(jsonData.status).to.eql(\"active\");",
-							"    pm.expect(jsonData.currency).to.eql(\"INR\");",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData).to.have.property(\"item_count\");",
-							"    pm.expect(jsonData).to.have.property(\"subtotal\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"customer_id\": \"{{customer_id}}\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/cart",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"cart"
-					]
-				},
-				"description": "Create or retrieve active customer cart."
-			},
-			"response": []
-		},
-		{
-			"name": "Cart - Add Item",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Item added to cart with authoritative server price\", function () {",
-							"    pm.expect(jsonData.item_count).to.be.at.least(1);",
-							"    pm.expect(jsonData.items.length).to.be.at.least(1);",
-							"    var item = jsonData.items.find(i => i.product_id === pm.collectionVariables.get(\"first_product_id\"));",
-							"    pm.expect(item).to.not.be.undefined;",
-							"    pm.expect(parseFloat(item.unit_price)).to.be.above(0);",
-							"    pm.expect(parseFloat(jsonData.subtotal)).to.be.above(0);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"product_id\": \"{{first_product_id}}\",\n  \"quantity\": 2\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"cart",
-						"{{customer_id}}",
-						"items"
-					]
-				},
-				"description": "Add product to customer active cart."
-			},
-			"response": []
-		},
-		{
-			"name": "Cart - Get Active Cart",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Active cart retrieved with items\", function () {",
-							"    pm.expect(jsonData.status).to.eql(\"active\");",
-							"    pm.expect(jsonData.items.length).to.be.at.least(1);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"cart",
-						"{{customer_id}}"
-					]
-				},
-				"description": "Retrieve customer active cart."
-			},
-			"response": []
-		},
-		{
-			"name": "Cart - Update Item Quantity",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Item quantity updated to 3 and subtotal recalculated\", function () {",
-							"    var item = jsonData.items.find(i => i.product_id === pm.collectionVariables.get(\"first_product_id\"));",
-							"    pm.expect(item.quantity).to.eql(3);",
-							"    var expectedTotal = item.quantity * parseFloat(item.unit_price);",
-							"    pm.expect(parseFloat(item.total_price)).to.eql(expectedTotal);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "PUT",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"quantity\": 3\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items/{{first_product_id}}",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"cart",
-						"{{customer_id}}",
-						"items",
-						"{{first_product_id}}"
-					]
-				},
-				"description": "Update product quantity in cart."
-			},
-			"response": []
-		},
-		{
-			"name": "Cart - Remove Item",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Item removed and cart totals updated\", function () {",
-							"    pm.expect(jsonData.items.length).to.eql(0);",
-							"    pm.expect(parseFloat(jsonData.subtotal)).to.eql(0.0);",
-							"    pm.expect(parseFloat(jsonData.total)).to.eql(0.0);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "DELETE",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items/{{first_product_id}}",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"cart",
-						"{{customer_id}}",
-						"items",
-						"{{first_product_id}}"
-					]
-				},
-				"description": "Remove product from cart."
-			},
-			"response": []
-		},
-		{
-			"name": "Cart - Add Product For Checkout",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Cart is primed with 1 item for checkout\", function () {",
-							"    pm.expect(jsonData.items.length).to.eql(1);",
-							"    pm.expect(jsonData.item_count).to.eql(1);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"product_id\": \"{{first_product_id}}\",\n  \"quantity\": 1\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"cart",
-						"{{customer_id}}",
-						"items"
-					]
-				},
-				"description": "Add product to cart in preparation for order creation."
-			},
-			"response": []
-		},
-		{
-			"name": "Orders - Create Order from Cart",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 201\", function () {",
-							"    pm.response.to.have.status(201);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Order created with pending_payment status and item snapshots\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"id\");",
-							"    pm.expect(jsonData.customer_id).to.eql(pm.collectionVariables.get(\"customer_id\"));",
-							"    pm.expect(jsonData.status).to.eql(\"pending_payment\");",
-							"    pm.expect(jsonData.currency).to.eql(\"INR\");",
-							"    pm.expect(jsonData.items.length).to.be.at.least(1);",
-							"    pm.expect(jsonData.items[0]).to.have.property(\"product_name\");",
-							"    pm.expect(jsonData.items[0]).to.have.property(\"sku\");",
-							"    pm.expect(parseFloat(jsonData.items[0].unit_price)).to.be.above(0);",
-							"    pm.expect(parseFloat(jsonData.total)).to.be.above(0);",
-							"    pm.collectionVariables.set(\"created_order_id\", jsonData.id);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"customer_id\": \"{{customer_id}}\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/orders",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"orders"
-					]
-				},
-				"description": "Atomically convert active cart into pending_payment Order."
-			},
-			"response": []
-		},
-		{
-			"name": "Orders - List Customer Orders",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Customer orders list contains the created order\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData.total).to.be.at.least(1);",
-							"    var found = jsonData.items.some(o => o.id === pm.collectionVariables.get(\"created_order_id\"));",
-							"    pm.expect(found).to.be.true;",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/orders/{{customer_id}}",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"orders",
-						"{{customer_id}}"
-					]
-				},
-				"description": "List all orders placed by customer."
-			},
-			"response": []
-		},
-		{
-			"name": "Orders - Get Single Order Detail",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Order detail matches requested order ID\", function () {",
-							"    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get(\"created_order_id\"));",
-							"    pm.expect(jsonData.customer_id).to.eql(pm.collectionVariables.get(\"customer_id\"));",
-							"    pm.expect(jsonData.status).to.eql(\"pending_payment\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/orders/{{customer_id}}/{{created_order_id}}",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"orders",
-						"{{customer_id}}",
-						"{{created_order_id}}"
-					]
-				},
-				"description": "Fetch detail of specific order belonging to customer."
-			},
-			"response": []
-		},
-		{
-			"name": "Payments - Create Razorpay Test Order",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Razorpay test payment order generated with authoritative amount\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"payment_id\");",
-							"    pm.expect(jsonData.order_id).to.eql(pm.collectionVariables.get(\"created_order_id\"));",
-							"    pm.expect(jsonData).to.have.property(\"razorpay_order_id\");",
-							"    pm.expect(jsonData.razorpay_order_id).to.match(/^order_/);",
-							"    pm.expect(parseFloat(jsonData.amount)).to.be.above(0);",
-							"    pm.expect(jsonData.amount_in_paise).to.eql(Math.round(parseFloat(jsonData.amount) * 100));",
-							"    pm.expect(jsonData.currency).to.eql(\"INR\");",
-							"    pm.expect(jsonData).to.have.property(\"key_id\");",
-							"    pm.expect(jsonData.status).to.eql(\"created\");",
-							"",
-							"    pm.collectionVariables.set(\"created_razorpay_order_id\", jsonData.razorpay_order_id);",
-							"    pm.collectionVariables.set(\"created_payment_id\", jsonData.payment_id);",
-							"    pm.collectionVariables.set(\"order_amount_paise\", jsonData.amount_in_paise);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"order_id\": \"{{created_order_id}}\",\n  \"customer_id\": \"{{customer_id}}\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/payments/create-order",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"payments",
-						"create-order"
-					]
-				},
-				"description": "Create a Razorpay Test Mode checkout order for an application order using authoritative backend amount."
-			},
-			"response": []
-		},
-		{
-			"name": "Payments - Razorpay Webhook Verification",
-			"event": [
-				{
-					"listen": "prerequest",
-					"script": {
-						"exec": [
-							"var rzpOrderId = pm.collectionVariables.get(\"created_razorpay_order_id\") || \"order_test_sample\";",
-							"var amountPaise = pm.collectionVariables.get(\"order_amount_paise\") || 349900;",
-							"var rzpPaymentId = \"pay_test_\" + Math.random().toString(36).substring(2, 10);",
-							"var payload = {",
-							"    \"entity\": \"event\",",
-							"    \"event\": \"payment.captured\",",
-							"    \"payload\": {",
-							"        \"payment\": {",
-							"            \"entity\": {",
-							"                \"id\": rzpPaymentId,",
-							"                \"order_id\": rzpOrderId,",
-							"                \"amount\": amountPaise,",
-							"                \"currency\": \"INR\",",
-							"                \"status\": \"captured\"",
-							"            }",
-							"        }",
-							"    }",
-							"};",
-							"var rawBody = JSON.stringify(payload);",
-							"pm.request.body.raw = rawBody;",
-							"var secret = \"test_webhook_secret_key_123\";",
-							"var signature = CryptoJS.HmacSHA256(rawBody, secret).toString(CryptoJS.enc.Hex);",
-							"pm.request.headers.upsert({key: \"X-Razorpay-Signature\", value: signature});"
-						],
-						"type": "text/javascript"
-					}
-				},
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Webhook successfully processed and order marked paid\", function () {",
-							"    pm.expect(jsonData.status).to.eql(\"ok\");",
-							"    pm.expect(jsonData.order_status).to.eql(\"paid\");",
-							"    pm.expect(jsonData.payment_status).to.eql(\"paid\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n  \"entity\": \"event\",\n  \"event\": \"payment.captured\",\n  \"payload\": {}\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/payments/webhook",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"payments",
-						"webhook"
-					]
-				},
-				"description": "Secure Razorpay Webhook endpoint verifying HMAC-SHA256 signature and reconciling payment."
-			},
-			"response": []
-		},
-		{
-			"name": "Audit - Get Customer Audit Logs",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Audit logs retrieved with chronological items\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"    pm.expect(jsonData.items).to.be.an(\"array\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/audit/c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"audit",
-						"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c"
-					]
-				},
-				"description": "Retrieves the structured audit trail for the customer, capturing agent requests, cart updates, order creation, and payment verification."
-			},
-			"response": []
-		},
-		{
-			"name": "Dashboard - Get Overview Metrics",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Overview metrics contain authoritative business and AI figures\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"total_revenue\");",
-							"    pm.expect(jsonData).to.have.property(\"paid_orders_count\");",
-							"    pm.expect(jsonData).to.have.property(\"average_order_value\");",
-							"    pm.expect(jsonData).to.have.property(\"ai_assisted_orders_count\");",
-							"    pm.expect(jsonData).to.have.property(\"recommendation_acceptance_rate\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/dashboard/overview",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"dashboard",
-						"overview"
-					]
-				},
-				"description": "Retrieves authoritative merchant metrics including revenue, orders, AOV, conversion rate, and AI growth attribution."
-			},
-			"response": []
-		},
-		{
-			"name": "Dashboard - Get Recent Orders",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Recent orders returned with pagination and AI flag\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"    pm.expect(jsonData.items).to.be.an(\"array\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/dashboard/orders?page=1&page_size=10",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"dashboard",
-						"orders"
-					],
-					"query": [
-						{
-							"key": "page",
-							"value": "1"
-						},
-						{
-							"key": "page_size",
-							"value": "10"
-						}
-					]
-				},
-				"description": "Retrieves recent customer orders with live payment statuses and AI attribution flags."
-			},
-			"response": []
-		},
-		{
-			"name": "Dashboard - Get Recent Activity",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Recent agent activity returned\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"items\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"    pm.expect(jsonData.items).to.be.an(\"array\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/dashboard/activity?limit=10",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"dashboard",
-						"activity"
-					],
-					"query": [
-						{
-							"key": "limit",
-							"value": "10"
-						}
-					]
-				},
-				"description": "Retrieves recent observable agent activities, commerce actions, and security events."
-			},
-			"response": []
-		},
-		{
-			"name": "Agent Commerce - Discover Products",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Discovery returns products with authoritative notice\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"products\");",
-							"    pm.expect(jsonData).to.have.property(\"authoritative_notice\");",
-							"    pm.expect(jsonData.products).to.be.an(\"array\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"query\": \"wireless earbuds with active noise cancellation\",\n    \"budget_max\": 20000,\n    \"quantity\": 1\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"discover"
-					]
-				},
-				"description": "Machine-to-machine product discovery interface for external buyer agent."
-			},
-			"response": []
-		},
-		{
-			"name": "Agent Commerce - Get Product Details",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Authoritative product details returned\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"product\");",
-							"    pm.expect(jsonData).to.have.property(\"authoritative_price\");",
-							"    pm.expect(jsonData.in_stock).to.be.true;",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/products/465206d3-bd4d-4f9f-b705-010670ab4006",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"products",
-						"465206d3-bd4d-4f9f-b705-010670ab4006"
-					]
-				},
-				"description": "Retrieves server-authoritative product specs, price, and inventory for buyer agent."
-			},
-			"response": []
-		},
-		{
-			"name": "Agent Commerce - Inventory Check",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Inventory check returns available status\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"available\");",
-							"    pm.expect(jsonData).to.have.property(\"unit_price\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/inventory/check",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"inventory",
-						"check"
-					]
-				},
-				"description": "Verifies stock availability and purchase quantity limits before cart checkout."
-			},
-			"response": []
-		},
-		{
-			"name": "Agent Commerce - Add Cart Item",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Cart item added with server-calculated price\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"id\");",
-							"    pm.expect(jsonData.items.length).to.be.above(0);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"cart",
-						"items"
-					]
-				},
-				"description": "Adds catalog product to buyer agent session cart using server-side prices."
-			},
-			"response": []
-		},
-		{
-			"name": "Agent Commerce - Create Order (Idempotent)",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200 or 201\", function () {",
-							"    pm.expect([200, 201]).to.include(pm.response.code);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Order created or idempotently returned\", function () {",
-							"    pm.expect(jsonData).to.have.property(\"id\");",
-							"    pm.expect(jsonData).to.have.property(\"total\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"cart_id\": \"d61a5fbf-01df-4ee4-a34e-5cf9388af5b5\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/orders",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"orders"
-					]
-				},
-				"description": "Creates an order from buyer agent cart with idempotency guarantee."
-			},
-			"response": []
-		},
-		{
-			"name": "Agent Commerce - Unauthorized Rejection",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 401\", function () {",
-							"    pm.response.to.have.status(401);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Detail specifies missing or invalid agent key\", function () {",
-							"    pm.expect(jsonData.detail).to.include(\"Agent Commerce Key\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "invalid_forged_key_12345"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"query\": \"laptop\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"discover"
-					]
-				},
-				"description": "Verifies that unauthorized agent calls without valid X-Agent-Key are rejected."
-			},
-			"response": []
-		},
-		{
-			"name": "Adversarial - Price Tampering Discarded",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Authoritative catalog price enforced, forged price 0.01 discarded\", function () {",
-							"    pm.expect(parseFloat(jsonData.items[0].unit_price)).to.be.above(100);",
-							"    pm.expect(parseFloat(jsonData.total)).to.be.above(100);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1,\n    \"unit_price\": 0.01,\n    \"total\": 0.01\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"cart",
-						"items"
-					]
-				},
-				"description": "Verifies that adversarial attempts to supply manipulated prices in cart requests are discarded."
-			},
-			"response": []
-		},
-		{
-			"name": "Adversarial - Negative Quantity Rejected",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 422\", function () {",
-							"    pm.response.to.have.status(422);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": -5\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"cart",
-						"items"
-					]
-				},
-				"description": "Verifies that negative quantities are rejected by schema validation."
-			},
-			"response": []
-		},
-		{
-			"name": "Adversarial - Cross-Customer Cart Checkout Blocked",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 404\", function () {",
-							"    pm.response.to.have.status(404);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Cross-customer access denied / not found\", function () {",
-							"    pm.expect(jsonData.detail.toLowerCase()).to.include(\"not found\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Agent-Key",
-						"value": "ag_live_key_test_commerce_2026"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"customer_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"cart_id\": \"d61a5fbf-01df-4ee4-a34e-5cf9388af5b5\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/agent-commerce/orders",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"agent-commerce",
-						"orders"
-					]
-				},
-				"description": "Verifies that Customer A cannot checkout Customer B's cart."
-			},
-			"response": []
-		},
-		{
-			"name": "Adversarial - Forged Webhook Signature Rejected",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 400\", function () {",
-							"    pm.response.to.have.status(400);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Signature rejection verified\", function () {",
-							"    pm.expect(jsonData.detail.toLowerCase()).to.include(\"invalid webhook signature\");",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					},
-					{
-						"key": "X-Razorpay-Signature",
-						"value": "bogus_forged_hmac_signature_hex_12345"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"event\": \"payment.captured\",\n    \"payload\": {\n        \"payment\": {\n            \"entity\": {\n                \"id\": \"pay_forged_999\",\n                \"order_id\": \"order_forged_999\",\n                \"amount\": 100000,\n                \"currency\": \"INR\",\n                \"status\": \"captured\"\n            }\n        }\n    }\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/payments/webhook",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"payments",
-						"webhook"
-					]
-				},
-				"description": "Verifies that forged Razorpay webhook signatures are rejected with 400 Bad Request."
-			},
-			"response": []
-		},
-		{
-			"name": "Auth - User Registration",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 201 or 409\", function () {",
-							"    pm.expect([201, 409]).to.include(pm.response.code);",
-							"});",
-							"",
-							"if (pm.response.code === 201) {",
-							"    var jsonData = pm.response.json();",
-							"    pm.test(\"Response contains id and normalized email\", function () {",
-							"        pm.expect(jsonData).to.have.property('id');",
-							"        pm.expect(jsonData).to.have.property('email');",
-							"        pm.expect(jsonData.email).to.eql(\"postman.auth@example.com\");",
-							"        pm.expect(jsonData.is_active).to.eql(true);",
-							"    });",
-							"",
-							"    pm.test(\"Sensitive credentials not exposed\", function () {",
-							"        pm.expect(jsonData).to.not.have.property('password');",
-							"        pm.expect(jsonData).to.not.have.property('password_hash');",
-							"    });",
-							"}"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"email\": \"Postman.Auth@Example.COM\",\n    \"password\": \"TestPassword123!\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/auth/register",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"auth",
-						"register"
-					]
-				},
-				"description": "Registers a new user with email and password."
-			},
-			"response": []
-		},
-		{
-			"name": "Auth - User Login",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"exec": [
-							"pm.test(\"Status code is 200\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"var jsonData = pm.response.json();",
-							"pm.test(\"Response contains access_token and bearer type\", function () {",
-							"    pm.expect(jsonData).to.have.property('access_token');",
-							"    pm.expect(jsonData).to.have.property('token_type');",
-							"    pm.expect(jsonData.token_type.toLowerCase()).to.eql('bearer');",
-							"    pm.expect(jsonData.access_token.length).to.be.above(20);",
-							"});"
-						],
-						"type": "text/javascript"
-					}
-				}
-			],
-			"request": {
-				"method": "POST",
-				"header": [
-					{
-						"key": "Content-Type",
-						"value": "application/json"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": "{\n    \"email\": \"postman.auth@example.com\",\n    \"password\": \"TestPassword123!\"\n}"
-				},
-				"url": {
-					"raw": "http://127.0.0.1:8000/api/auth/login",
-					"protocol": "http",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "8000",
-					"path": [
-						"api",
-						"auth",
-						"login"
-					]
-				},
-				"description": "Authenticates a registered user and returns a signed JWT access token."
-			},
-			"response": []
-		}
-	]
+    "info": {
+        "_postman_id": "a92c47c7-5e1d-4eb4-b9ea-44a706b85c12",
+        "name": "AI Commerce Agent API",
+        "description": "Postman API Collection for Razorpay AI Buildathon Track 01 - AI Commerce Agent",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "first_product_id",
+            "value": "465206d3-bd4d-4f9f-b705-010670ab4006",
+            "type": "string"
+        },
+        {
+            "key": "customer_id",
+            "value": "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+            "type": "string"
+        },
+        {
+            "key": "created_order_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "auth_token",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Health Check",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "pm.test(\"Response contains status = ok\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.status).to.eql(\"ok\");",
+                            "});",
+                            "",
+                            "pm.test(\"Response contains service = ai-commerce-agent-api\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.service).to.eql(\"ai-commerce-agent-api\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/health",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "health"
+                    ]
+                },
+                "description": "Health check endpoint verifying API service availability."
+            },
+            "response": []
+        },
+        {
+            "name": "Database Health Check",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "pm.test(\"Response contains status = ok\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.status).to.eql(\"ok\");",
+                            "});",
+                            "",
+                            "pm.test(\"Response contains database = connected\", function () {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.expect(jsonData.database).to.eql(\"connected\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/health/database",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "health",
+                        "database"
+                    ]
+                },
+                "description": "Database health check endpoint verifying Supabase PostgreSQL connectivity."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - User Registration",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 201 or 409\", function () {",
+                            "    pm.expect([201, 409]).to.include(pm.response.code);",
+                            "});",
+                            "",
+                            "if (pm.response.code === 201) {",
+                            "    var jsonData = pm.response.json();",
+                            "    pm.test(\"Response contains id and normalized email\", function () {",
+                            "        pm.expect(jsonData).to.have.property('id');",
+                            "        pm.expect(jsonData).to.have.property('email');",
+                            "        pm.expect(jsonData.email).to.eql(\"postman.auth@example.com\");",
+                            "        pm.expect(jsonData.is_active).to.eql(true);",
+                            "    });",
+                            "",
+                            "    pm.test(\"Sensitive credentials not exposed\", function () {",
+                            "        pm.expect(jsonData).to.not.have.property('password');",
+                            "        pm.expect(jsonData).to.not.have.property('password_hash');",
+                            "    });",
+                            "    pm.collectionVariables.set(\"customer_id\", jsonData.id);",
+                            "}"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"email\": \"Postman.Auth@Example.COM\",\n    \"password\": \"TestPassword123!\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/auth/register",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "auth",
+                        "register"
+                    ]
+                },
+                "description": "Registers a new user with email and password."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - User Login",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains access_token and bearer type\", function () {",
+                            "    pm.expect(jsonData).to.have.property('access_token');",
+                            "    pm.expect(jsonData).to.have.property('token_type');",
+                            "    pm.expect(jsonData.token_type.toLowerCase()).to.eql('bearer');",
+                            "    pm.expect(jsonData.access_token.length).to.be.above(20);",
+                            "});",
+                            "var token = jsonData.access_token;",
+                            "pm.collectionVariables.set(\"auth_token\", token);",
+                            "try {",
+                            "    var base64Url = token.split('.')[1];",
+                            "    var base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');",
+                            "    var jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {",
+                            "        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);",
+                            "    }).join(''));",
+                            "    var payloadObj = JSON.parse(jsonPayload);",
+                            "    if (payloadObj && payloadObj.sub) {",
+                            "        pm.collectionVariables.set(\"customer_id\", payloadObj.sub);",
+                            "    }",
+                            "} catch (e) {",
+                            "    console.log(\"Error extracting user ID from JWT sub:\", e);",
+                            "}"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"email\": \"postman.auth@example.com\",\n    \"password\": \"TestPassword123!\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/auth/login",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "auth",
+                        "login"
+                    ]
+                },
+                "description": "Authenticates a registered user and returns a signed JWT access token."
+            },
+            "response": []
+        },
+        {
+            "name": "AI Agent - Understand Shopping Intent",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains message and structured intent\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"message\");",
+                            "    pm.expect(jsonData).to.have.property(\"intent\");",
+                            "});",
+                            "",
+                            "pm.test(\"Intent correctly extracted product_search and price bound\", function () {",
+                            "    pm.expect(jsonData.intent.intent).to.eql(\"product_search\");",
+                            "    pm.expect(jsonData.intent.category).to.eql(\"Audio\");",
+                            "    pm.expect(parseFloat(jsonData.intent.max_price)).to.eql(5000);",
+                            "    pm.expect(jsonData.intent.currency).to.eql(\"INR\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"message\": \"I need wireless headphones under \u20b95000\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent/understand",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent",
+                        "understand"
+                    ]
+                },
+                "description": "AI Agent endpoint for understanding customer shopping requests and converting them to structured shopping intents."
+            },
+            "response": []
+        },
+        {
+            "name": "AI Agent - Search Products",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains intent, message, and matching items\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"message\");",
+                            "    pm.expect(jsonData).to.have.property(\"intent\");",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "    pm.expect(jsonData.total).to.be.at.least(1);",
+                            "});",
+                            "",
+                            "pm.test(\"Returned products match earbuds and budget\", function () {",
+                            "    var hasMatch = jsonData.items.some(function(item) {",
+                            "        return item.category === \"Audio\" && parseFloat(item.price) <= 5000;",
+                            "    });",
+                            "    pm.expect(hasMatch).to.be.true;",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"message\": \"Show me wireless earbuds under \u20b95000\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent/search",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent",
+                        "search"
+                    ]
+                },
+                "description": "End-to-end AI Agent product discovery endpoint translating natural language query into catalog search results."
+            },
+            "response": []
+        },
+        {
+            "name": "AI Agent - Recommend Products",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains recommendations with scores and explanations\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"message\");",
+                            "    pm.expect(jsonData).to.have.property(\"intent\");",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "    pm.expect(jsonData.total).to.be.at.least(1);",
+                            "    pm.expect(jsonData.items[0]).to.have.property(\"score\");",
+                            "    pm.expect(jsonData.items[0]).to.have.property(\"reason\");",
+                            "    pm.expect(jsonData.items[0]).to.have.property(\"product\");",
+                            "    pm.expect(jsonData.items[0].score).to.be.within(0.0, 1.0);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"message\": \"I need wireless headphones under \u20b95000 for travelling\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent/recommend",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent",
+                        "recommend"
+                    ]
+                },
+                "description": "AI Agent recommendation engine endpoint scoring and ranking catalog candidates with explainability reasons."
+            },
+            "response": []
+        },
+        {
+            "name": "AI Agent - Growth (Upsell & Cross-sell)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains primary products, upsells, and cross-sells\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"message\");",
+                            "    pm.expect(jsonData).to.have.property(\"intent\");",
+                            "    pm.expect(jsonData).to.have.property(\"primary_products\");",
+                            "    pm.expect(jsonData).to.have.property(\"upsell\");",
+                            "    pm.expect(jsonData).to.have.property(\"cross_sell\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "});",
+                            "",
+                            "pm.test(\"Growth items contain valid scores and explainable reasons\", function () {",
+                            "    if (jsonData.cross_sell && jsonData.cross_sell.length > 0) {",
+                            "        var cs = jsonData.cross_sell[0];",
+                            "        pm.expect(cs.type).to.eql(\"cross_sell\");",
+                            "        pm.expect(cs).to.have.property(\"product\");",
+                            "        pm.expect(cs).to.have.property(\"reason\");",
+                            "        pm.expect(cs.score).to.be.within(0.0, 1.0);",
+                            "    }",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"message\": \"Show me mechanical keyboards\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent/growth",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent",
+                        "growth"
+                    ]
+                },
+                "description": "AI Agent Upsell & Cross-sell growth engine endpoint generating upgrade and companion accessory opportunities."
+            },
+            "response": []
+        },
+        {
+            "name": "List Products (Default)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains pagination fields\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "    pm.expect(jsonData).to.have.property(\"page\");",
+                            "    pm.expect(jsonData).to.have.property(\"page_size\");",
+                            "    pm.expect(jsonData.total).to.be.at.least(12);",
+                            "});",
+                            "",
+                            "if (jsonData.items && jsonData.items.length > 0) {",
+                            "    pm.collectionVariables.set(\"first_product_id\", jsonData.items[0].id);",
+                            "}"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products"
+                    ]
+                },
+                "description": "Fetch list of active products with default pagination."
+            },
+            "response": []
+        },
+        {
+            "name": "Get Product Detail",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Product detail structure is complete\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"id\");",
+                            "    pm.expect(jsonData).to.have.property(\"name\");",
+                            "    pm.expect(jsonData).to.have.property(\"sku\");",
+                            "    pm.expect(jsonData).to.have.property(\"price\");",
+                            "    pm.expect(jsonData).to.have.property(\"currency\");",
+                            "    pm.expect(jsonData).to.have.property(\"inventory\");",
+                            "    pm.expect(jsonData).to.have.property(\"attributes\");",
+                            "    pm.expect(jsonData).to.have.property(\"is_active\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products/{{first_product_id}}",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products",
+                        "{{first_product_id}}"
+                    ]
+                },
+                "description": "Fetch detailed information for a single product by UUID."
+            },
+            "response": []
+        },
+        {
+            "name": "Filter Products by Category (Audio)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"All returned items belong to Audio category\", function () {",
+                            "    pm.expect(jsonData.total).to.be.at.least(1);",
+                            "    jsonData.items.forEach(function(item) {",
+                            "        pm.expect(item.category).to.eql(\"Audio\");",
+                            "    });",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products?category=Audio",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products"
+                    ],
+                    "query": [
+                        {
+                            "key": "category",
+                            "value": "Audio"
+                        }
+                    ]
+                },
+                "description": "Filter products belonging to the Audio category."
+            },
+            "response": []
+        },
+        {
+            "name": "Filter Products by Price Range",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"All items are within price range 5000 to 20000\", function () {",
+                            "    jsonData.items.forEach(function(item) {",
+                            "        var price = parseFloat(item.price);",
+                            "        pm.expect(price).to.be.at.least(5000);",
+                            "        pm.expect(price).to.be.at.most(20000);",
+                            "    });",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products?min_price=5000&max_price=20000",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products"
+                    ],
+                    "query": [
+                        {
+                            "key": "min_price",
+                            "value": "5000"
+                        },
+                        {
+                            "key": "max_price",
+                            "value": "20000"
+                        }
+                    ]
+                },
+                "description": "Filter products within min_price and max_price bounds."
+            },
+            "response": []
+        },
+        {
+            "name": "Search Products (headphone)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Search results match keyword\", function () {",
+                            "    pm.expect(jsonData.total).to.be.at.least(1);",
+                            "    var found = jsonData.items.some(function(item) {",
+                            "        return item.name.toLowerCase().includes(\"headphone\") || ",
+                            "               (item.description && item.description.toLowerCase().includes(\"headphone\"));",
+                            "    });",
+                            "    pm.expect(found).to.be.true;",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products?search=headphone",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products"
+                    ],
+                    "query": [
+                        {
+                            "key": "search",
+                            "value": "headphone"
+                        }
+                    ]
+                },
+                "description": "Search products by keyword in name or description."
+            },
+            "response": []
+        },
+        {
+            "name": "Filter Available Products",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"All returned products are active and in stock\", function () {",
+                            "    jsonData.items.forEach(function(item) {",
+                            "        pm.expect(item.is_active).to.be.true;",
+                            "        pm.expect(item.inventory).to.be.above(0);",
+                            "    });",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products?available=true",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products"
+                    ],
+                    "query": [
+                        {
+                            "key": "available",
+                            "value": "true"
+                        }
+                    ]
+                },
+                "description": "Filter products to only return active items with positive inventory."
+            },
+            "response": []
+        },
+        {
+            "name": "Paginate Products (page=1, page_size=5)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Page size matches requested limit\", function () {",
+                            "    pm.expect(jsonData.page).to.eql(1);",
+                            "    pm.expect(jsonData.page_size).to.eql(5);",
+                            "    pm.expect(jsonData.items.length).to.eql(5);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products?page=1&page_size=5",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products"
+                    ],
+                    "query": [
+                        {
+                            "key": "page",
+                            "value": "1"
+                        },
+                        {
+                            "key": "page_size",
+                            "value": "5"
+                        }
+                    ]
+                },
+                "description": "Paginate product catalog with page and page_size bounds."
+            },
+            "response": []
+        },
+        {
+            "name": "Get Product Detail (Nonexistent 404)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 404\", function () {",
+                            "    pm.response.to.have.status(404);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Detail message indicates product not found\", function () {",
+                            "    pm.expect(jsonData.detail).to.eql(\"Product not found\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/products/00000000-0000-0000-0000-000000000000",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "products",
+                        "00000000-0000-0000-0000-000000000000"
+                    ]
+                },
+                "description": "Verify 404 Not Found is returned for non-existent product UUID."
+            },
+            "response": []
+        },
+        {
+            "name": "Cart - Create or Get Cart",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Response contains cart structure\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"id\");",
+                            "    pm.expect(jsonData).to.have.property(\"customer_id\");",
+                            "    pm.expect(jsonData.status).to.eql(\"active\");",
+                            "    pm.expect(jsonData.currency).to.eql(\"INR\");",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData).to.have.property(\"item_count\");",
+                            "    pm.expect(jsonData).to.have.property(\"subtotal\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"customer_id\": \"{{customer_id}}\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart"
+                    ]
+                },
+                "description": "Create or retrieve active customer cart."
+            },
+            "response": []
+        },
+        {
+            "name": "Cart - Add Item",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Item added to cart with authoritative server price\", function () {",
+                            "    pm.expect(jsonData.item_count).to.be.at.least(1);",
+                            "    pm.expect(jsonData.items.length).to.be.at.least(1);",
+                            "    var item = jsonData.items.find(i => i.product_id === pm.collectionVariables.get(\"first_product_id\"));",
+                            "    pm.expect(item).to.not.be.undefined;",
+                            "    pm.expect(parseFloat(item.unit_price)).to.be.above(0);",
+                            "    pm.expect(parseFloat(jsonData.subtotal)).to.be.above(0);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"product_id\": \"{{first_product_id}}\",\n  \"quantity\": 2\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart",
+                        "{{customer_id}}",
+                        "items"
+                    ]
+                },
+                "description": "Add product to customer active cart."
+            },
+            "response": []
+        },
+        {
+            "name": "Cart - Get Active Cart",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Active cart retrieved with items\", function () {",
+                            "    pm.expect(jsonData.status).to.eql(\"active\");",
+                            "    pm.expect(jsonData.items.length).to.be.at.least(1);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart",
+                        "{{customer_id}}"
+                    ]
+                },
+                "description": "Retrieve customer active cart."
+            },
+            "response": []
+        },
+        {
+            "name": "Cart - Update Item Quantity",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Item quantity updated to 3 and subtotal recalculated\", function () {",
+                            "    var item = jsonData.items.find(i => i.product_id === pm.collectionVariables.get(\"first_product_id\"));",
+                            "    pm.expect(item.quantity).to.eql(3);",
+                            "    var expectedTotal = item.quantity * parseFloat(item.unit_price);",
+                            "    pm.expect(parseFloat(item.total_price)).to.eql(expectedTotal);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "PUT",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"quantity\": 3\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items/{{first_product_id}}",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart",
+                        "{{customer_id}}",
+                        "items",
+                        "{{first_product_id}}"
+                    ]
+                },
+                "description": "Update product quantity in cart."
+            },
+            "response": []
+        },
+        {
+            "name": "Cart - Remove Item",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Item removed and cart totals updated\", function () {",
+                            "    pm.expect(jsonData.items.length).to.eql(0);",
+                            "    pm.expect(parseFloat(jsonData.subtotal)).to.eql(0.0);",
+                            "    pm.expect(parseFloat(jsonData.total)).to.eql(0.0);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "DELETE",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items/{{first_product_id}}",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart",
+                        "{{customer_id}}",
+                        "items",
+                        "{{first_product_id}}"
+                    ]
+                },
+                "description": "Remove product from cart."
+            },
+            "response": []
+        },
+        {
+            "name": "Cart - Add Product For Checkout",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Cart is primed with 1 item for checkout\", function () {",
+                            "    pm.expect(jsonData.items.length).to.eql(1);",
+                            "    pm.expect(jsonData.item_count).to.eql(1);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"product_id\": \"{{first_product_id}}\",\n  \"quantity\": 1\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart/{{customer_id}}/items",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart",
+                        "{{customer_id}}",
+                        "items"
+                    ]
+                },
+                "description": "Add product to cart in preparation for order creation."
+            },
+            "response": []
+        },
+        {
+            "name": "Orders - Create Order from Cart",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 201\", function () {",
+                            "    pm.response.to.have.status(201);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Order created with pending_payment status and item snapshots\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"id\");",
+                            "    pm.expect(jsonData.customer_id).to.eql(pm.collectionVariables.get(\"customer_id\"));",
+                            "    pm.expect(jsonData.status).to.eql(\"pending_payment\");",
+                            "    pm.expect(jsonData.currency).to.eql(\"INR\");",
+                            "    pm.expect(jsonData.items.length).to.be.at.least(1);",
+                            "    pm.expect(jsonData.items[0]).to.have.property(\"product_name\");",
+                            "    pm.expect(jsonData.items[0]).to.have.property(\"sku\");",
+                            "    pm.expect(parseFloat(jsonData.items[0].unit_price)).to.be.above(0);",
+                            "    pm.expect(parseFloat(jsonData.total)).to.be.above(0);",
+                            "    pm.collectionVariables.set(\"created_order_id\", jsonData.id);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"customer_id\": \"{{customer_id}}\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/orders",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "orders"
+                    ]
+                },
+                "description": "Atomically convert active cart into pending_payment Order."
+            },
+            "response": []
+        },
+        {
+            "name": "Orders - List Customer Orders",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Customer orders list contains the created order\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData.total).to.be.at.least(1);",
+                            "    var found = jsonData.items.some(o => o.id === pm.collectionVariables.get(\"created_order_id\"));",
+                            "    pm.expect(found).to.be.true;",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/orders/{{customer_id}}",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "orders",
+                        "{{customer_id}}"
+                    ]
+                },
+                "description": "List all orders placed by customer."
+            },
+            "response": []
+        },
+        {
+            "name": "Orders - Get Single Order Detail",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Order detail matches requested order ID\", function () {",
+                            "    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get(\"created_order_id\"));",
+                            "    pm.expect(jsonData.customer_id).to.eql(pm.collectionVariables.get(\"customer_id\"));",
+                            "    pm.expect(jsonData.status).to.eql(\"pending_payment\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/orders/{{customer_id}}/{{created_order_id}}",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "orders",
+                        "{{customer_id}}",
+                        "{{created_order_id}}"
+                    ]
+                },
+                "description": "Fetch detail of specific order belonging to customer."
+            },
+            "response": []
+        },
+        {
+            "name": "Payments - Create Razorpay Test Order",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Razorpay test payment order generated with authoritative amount\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"payment_id\");",
+                            "    pm.expect(jsonData.order_id).to.eql(pm.collectionVariables.get(\"created_order_id\"));",
+                            "    pm.expect(jsonData).to.have.property(\"razorpay_order_id\");",
+                            "    pm.expect(jsonData.razorpay_order_id).to.match(/^order_/);",
+                            "    pm.expect(parseFloat(jsonData.amount)).to.be.above(0);",
+                            "    pm.expect(jsonData.amount_in_paise).to.eql(Math.round(parseFloat(jsonData.amount) * 100));",
+                            "    pm.expect(jsonData.currency).to.eql(\"INR\");",
+                            "    pm.expect(jsonData).to.have.property(\"key_id\");",
+                            "    pm.expect(jsonData.status).to.eql(\"created\");",
+                            "",
+                            "    pm.collectionVariables.set(\"created_razorpay_order_id\", jsonData.razorpay_order_id);",
+                            "    pm.collectionVariables.set(\"created_payment_id\", jsonData.payment_id);",
+                            "    pm.collectionVariables.set(\"order_amount_paise\", jsonData.amount_in_paise);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"order_id\": \"{{created_order_id}}\",\n  \"customer_id\": \"{{customer_id}}\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/payments/create-order",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "payments",
+                        "create-order"
+                    ]
+                },
+                "description": "Create a Razorpay Test Mode checkout order for an application order using authoritative backend amount."
+            },
+            "response": []
+        },
+        {
+            "name": "Payments - Razorpay Webhook Verification",
+            "event": [
+                {
+                    "listen": "prerequest",
+                    "script": {
+                        "exec": [
+                            "var rzpOrderId = pm.collectionVariables.get(\"created_razorpay_order_id\") || \"order_test_sample\";",
+                            "var amountPaise = pm.collectionVariables.get(\"order_amount_paise\") || 349900;",
+                            "var rzpPaymentId = \"pay_test_\" + Math.random().toString(36).substring(2, 10);",
+                            "var payload = {",
+                            "    \"entity\": \"event\",",
+                            "    \"event\": \"payment.captured\",",
+                            "    \"payload\": {",
+                            "        \"payment\": {",
+                            "            \"entity\": {",
+                            "                \"id\": rzpPaymentId,",
+                            "                \"order_id\": rzpOrderId,",
+                            "                \"amount\": amountPaise,",
+                            "                \"currency\": \"INR\",",
+                            "                \"status\": \"captured\"",
+                            "            }",
+                            "        }",
+                            "    }",
+                            "};",
+                            "var rawBody = JSON.stringify(payload);",
+                            "pm.request.body.raw = rawBody;",
+                            "var secret = \"test_webhook_secret_key_123\";",
+                            "var signature = CryptoJS.HmacSHA256(rawBody, secret).toString(CryptoJS.enc.Hex);",
+                            "pm.request.headers.upsert({key: \"X-Razorpay-Signature\", value: signature});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                },
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Webhook successfully processed and order marked paid\", function () {",
+                            "    pm.expect(jsonData.status).to.eql(\"ok\");",
+                            "    pm.expect(jsonData.order_status).to.eql(\"paid\");",
+                            "    pm.expect(jsonData.payment_status).to.eql(\"paid\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"entity\": \"event\",\n  \"event\": \"payment.captured\",\n  \"payload\": {}\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/payments/webhook",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "payments",
+                        "webhook"
+                    ]
+                },
+                "description": "Secure Razorpay Webhook endpoint verifying HMAC-SHA256 signature and reconciling payment."
+            },
+            "response": []
+        },
+        {
+            "name": "Audit - Get Customer Audit Logs",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Audit logs retrieved with chronological items\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "    pm.expect(jsonData.items).to.be.an(\"array\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/audit/{{customer_id}}",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "audit",
+                        "{{customer_id}}"
+                    ]
+                },
+                "description": "Retrieves the structured audit trail for the customer, capturing agent requests, cart updates, order creation, and payment verification."
+            },
+            "response": []
+        },
+        {
+            "name": "Dashboard - Get Overview Metrics",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Overview metrics contain authoritative business and AI figures\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"total_revenue\");",
+                            "    pm.expect(jsonData).to.have.property(\"paid_orders_count\");",
+                            "    pm.expect(jsonData).to.have.property(\"average_order_value\");",
+                            "    pm.expect(jsonData).to.have.property(\"ai_assisted_orders_count\");",
+                            "    pm.expect(jsonData).to.have.property(\"recommendation_acceptance_rate\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/dashboard/overview",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "dashboard",
+                        "overview"
+                    ]
+                },
+                "description": "Retrieves authoritative merchant metrics including revenue, orders, AOV, conversion rate, and AI growth attribution."
+            },
+            "response": []
+        },
+        {
+            "name": "Dashboard - Get Recent Orders",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Recent orders returned with pagination and AI flag\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "    pm.expect(jsonData.items).to.be.an(\"array\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/dashboard/orders?page=1&page_size=10",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "dashboard",
+                        "orders"
+                    ],
+                    "query": [
+                        {
+                            "key": "page",
+                            "value": "1"
+                        },
+                        {
+                            "key": "page_size",
+                            "value": "10"
+                        }
+                    ]
+                },
+                "description": "Retrieves recent customer orders with live payment statuses and AI attribution flags."
+            },
+            "response": []
+        },
+        {
+            "name": "Dashboard - Get Recent Activity",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Recent agent activity returned\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"items\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "    pm.expect(jsonData.items).to.be.an(\"array\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/dashboard/activity?limit=10",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "dashboard",
+                        "activity"
+                    ],
+                    "query": [
+                        {
+                            "key": "limit",
+                            "value": "10"
+                        }
+                    ]
+                },
+                "description": "Retrieves recent observable agent activities, commerce actions, and security events."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - Discover Products",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Discovery returns products with authoritative notice\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"products\");",
+                            "    pm.expect(jsonData).to.have.property(\"authoritative_notice\");",
+                            "    pm.expect(jsonData.products).to.be.an(\"array\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"query\": \"wireless earbuds with active noise cancellation\",\n    \"budget_max\": 20000,\n    \"quantity\": 1\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "discover"
+                    ]
+                },
+                "description": "Machine-to-machine product discovery interface for external buyer agent."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - Get Product Details",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Authoritative product details returned\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"product\");",
+                            "    pm.expect(jsonData).to.have.property(\"authoritative_price\");",
+                            "    pm.expect(jsonData.in_stock).to.be.true;",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/products/465206d3-bd4d-4f9f-b705-010670ab4006",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "products",
+                        "465206d3-bd4d-4f9f-b705-010670ab4006"
+                    ]
+                },
+                "description": "Retrieves server-authoritative product specs, price, and inventory for buyer agent."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - Inventory Check",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Inventory check returns available status\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"available\");",
+                            "    pm.expect(jsonData).to.have.property(\"unit_price\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/inventory/check",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "inventory",
+                        "check"
+                    ]
+                },
+                "description": "Verifies stock availability and purchase quantity limits before cart checkout."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - Add Cart Item",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Cart item added with server-calculated price\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"id\");",
+                            "    pm.expect(jsonData.items.length).to.be.above(0);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "cart",
+                        "items"
+                    ]
+                },
+                "description": "Adds catalog product to buyer agent session cart using server-side prices."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - Create Order (Idempotent)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200 or 201\", function () {",
+                            "    pm.expect([200, 201]).to.include(pm.response.code);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Order created or idempotently returned\", function () {",
+                            "    pm.expect(jsonData).to.have.property(\"id\");",
+                            "    pm.expect(jsonData).to.have.property(\"total\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"cart_id\": \"d61a5fbf-01df-4ee4-a34e-5cf9388af5b5\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/orders",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "orders"
+                    ]
+                },
+                "description": "Creates an order from buyer agent cart with idempotency guarantee."
+            },
+            "response": []
+        },
+        {
+            "name": "Agent Commerce - Unauthorized Rejection",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 401\", function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Detail specifies missing or invalid agent key\", function () {",
+                            "    pm.expect(jsonData.detail).to.include(\"Agent Commerce Key\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "invalid_forged_key_12345"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"query\": \"laptop\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/discover",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "discover"
+                    ]
+                },
+                "description": "Verifies that unauthorized agent calls without valid X-Agent-Key are rejected."
+            },
+            "response": []
+        },
+        {
+            "name": "Adversarial - Price Tampering Discarded",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 200\", function () {",
+                            "    pm.response.to.have.status(200);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Authoritative catalog price enforced, forged price 0.01 discarded\", function () {",
+                            "    pm.expect(parseFloat(jsonData.items[0].unit_price)).to.be.above(100);",
+                            "    pm.expect(parseFloat(jsonData.total)).to.be.above(100);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": 1,\n    \"unit_price\": 0.01,\n    \"total\": 0.01\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "cart",
+                        "items"
+                    ]
+                },
+                "description": "Verifies that adversarial attempts to supply manipulated prices in cart requests are discarded."
+            },
+            "response": []
+        },
+        {
+            "name": "Adversarial - Negative Quantity Rejected",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 422\", function () {",
+                            "    pm.response.to.have.status(422);",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"customer_id\": \"c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c\",\n    \"product_id\": \"465206d3-bd4d-4f9f-b705-010670ab4006\",\n    \"quantity\": -5\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/cart/items",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "cart",
+                        "items"
+                    ]
+                },
+                "description": "Verifies that negative quantities are rejected by schema validation."
+            },
+            "response": []
+        },
+        {
+            "name": "Adversarial - Cross-Customer Cart Checkout Blocked",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 404\", function () {",
+                            "    pm.response.to.have.status(404);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Cross-customer access denied / not found\", function () {",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"not found\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Agent-Key",
+                        "value": "ag_live_key_test_commerce_2026"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"customer_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"cart_id\": \"d61a5fbf-01df-4ee4-a34e-5cf9388af5b5\"\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/agent-commerce/orders",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "agent-commerce",
+                        "orders"
+                    ]
+                },
+                "description": "Verifies that Customer A cannot checkout Customer B's cart."
+            },
+            "response": []
+        },
+        {
+            "name": "Adversarial - Forged Webhook Signature Rejected",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 400\", function () {",
+                            "    pm.response.to.have.status(400);",
+                            "});",
+                            "",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Signature rejection verified\", function () {",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"invalid webhook signature\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "X-Razorpay-Signature",
+                        "value": "bogus_forged_hmac_signature_hex_12345"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"event\": \"payment.captured\",\n    \"payload\": {\n        \"payment\": {\n            \"entity\": {\n                \"id\": \"pay_forged_999\",\n                \"order_id\": \"order_forged_999\",\n                \"amount\": 100000,\n                \"currency\": \"INR\",\n                \"status\": \"captured\"\n            }\n        }\n    }\n}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/payments/webhook",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "payments",
+                        "webhook"
+                    ]
+                },
+                "description": "Verifies that forged Razorpay webhook signatures are rejected with 400 Bad Request."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - Protected Cart Missing JWT (401)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 401\", function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Error specifies missing authorization\", function () {",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"missing authorization header\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart"
+                    ]
+                },
+                "description": "Verifies that accessing protected cart endpoints without JWT returns 401 Unauthorized."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - Protected Cart Invalid Token (401)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 401\", function () {",
+                            "    pm.response.to.have.status(401);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Error specifies invalid access token\", function () {",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"invalid\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer invalid.forged.jwt.token"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{}"
+                },
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart"
+                    ]
+                },
+                "description": "Verifies that invalid or forged JWT signatures return 401 Unauthorized."
+            },
+            "response": []
+        },
+        {
+            "name": "Auth - Cross-User Cart Access Forbidden (403)",
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "exec": [
+                            "pm.test(\"Status code is 403\", function () {",
+                            "    pm.response.to.have.status(403);",
+                            "});",
+                            "var jsonData = pm.response.json();",
+                            "pm.test(\"Error specifies access denied\", function () {",
+                            "    pm.expect(jsonData.detail.toLowerCase()).to.include(\"access denied\");",
+                            "});"
+                        ],
+                        "type": "text/javascript"
+                    }
+                }
+            ],
+            "request": {
+                "method": "GET",
+                "header": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{auth_token}}"
+                    }
+                ],
+                "url": {
+                    "raw": "http://127.0.0.1:8000/api/cart/00000000-0000-0000-0000-000000000000",
+                    "protocol": "http",
+                    "host": [
+                        "127",
+                        "0",
+                        "0",
+                        "1"
+                    ],
+                    "port": "8000",
+                    "path": [
+                        "api",
+                        "cart",
+                        "00000000-0000-0000-0000-000000000000"
+                    ]
+                },
+                "description": "Verifies that User A cannot access User B's cart, returning 403 Forbidden."
+            },
+            "response": []
+        }
+    ]
 }

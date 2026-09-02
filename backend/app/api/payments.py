@@ -2,7 +2,8 @@ import json
 import logging
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.core.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.payment import (
     CreatePaymentOrderRequest,
     PaymentOrderResponse,
@@ -23,20 +24,28 @@ router = APIRouter(prefix="/api/payments", tags=["Payments"])
 )
 def create_payment_order(
     payload: CreatePaymentOrderRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Creates a Razorpay Test Mode checkout order for an existing application order:
+    - Enforces ownership: user can only initiate payment for their own order.
     - Verifies order exists and is in 'pending_payment' or 'created' status.
     - Reads authoritative payable total from database (rejects client amounts).
     - Generates Razorpay order in INR.
     - Saves payment record reference in database.
     - Returns Razorpay checkout payload (key_id, razorpay_order_id, amount_in_paise).
     """
+    if payload.customer_id and payload.customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot initiate payment for another user's order.",
+        )
+    effective_customer_id = payload.customer_id or current_user.id
     payment_order = payment_service.create_payment_order(
         db,
         order_id=payload.order_id,
-        customer_id=payload.customer_id,
+        customer_id=effective_customer_id,
     )
     return payment_order
 

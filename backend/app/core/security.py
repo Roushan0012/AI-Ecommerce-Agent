@@ -1,4 +1,5 @@
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
 import jwt
@@ -8,7 +9,11 @@ from argon2.exceptions import (
     VerificationError,
     VerifyMismatchError,
 )
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.orm import Session
 from app.core.config import settings
+from app.core.database import get_db
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -149,3 +154,91 @@ def decode_access_token(
         raise InvalidTokenError(f"Invalid access token: {type(e).__name__}") from e
     except Exception as e:
         raise InvalidTokenError(f"Access token verification failed: {type(e).__name__}") from e
+
+
+# ==============================================================================
+# 3. JWT Authentication Dependency (FastAPI)
+# ==============================================================================
+
+def get_current_user(
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    FastAPI dependency for authenticating user requests via Bearer JWT.
+    - Reads Authorization header
+    - Enforces Bearer scheme
+    - Cryptographically verifies signature and expiration
+    - Extracts subject UUID
+    - Looks up User in database
+    - Rejects missing, invalid, expired, nonexistent, or inactive credentials with 401
+    """
+    if not authorization or not authorization.strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    parts = authorization.strip().split(" ", 1)
+    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication scheme. Bearer token required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = parts[1].strip()
+
+    try:
+        payload = decode_access_token(token)
+    except ExpiredTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except (InvalidTokenError, JWTError, Exception) as exc:
+        logger.warning(f"JWT verification failed: {type(exc).__name__}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token: missing subject.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        user_id = uuid.UUID(str(sub))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token subject format.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        logger.warning(f"JWT subject not found in database: {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or invalid credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        logger.warning(f"Inactive user attempted API access: {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive or disabled.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user
+

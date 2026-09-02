@@ -2,7 +2,8 @@ import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.core.dependencies import get_current_user, get_db
+from app.models.user import User
 from app.schemas.cart import (
     CartCreateRequest,
     CartItemCreateRequest,
@@ -22,13 +23,19 @@ router = APIRouter(prefix="/api/cart", tags=["Cart"])
 )
 def create_or_get_cart(
     payload: Optional[CartCreateRequest] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Creates a new cart or retrieves existing active cart for the customer.
-    If no customer_id is provided, a new UUID is generated.
+    Creates a new cart or retrieves existing active cart for the authenticated customer.
+    Enforces ownership: client-supplied customer_id cannot override authenticated user identity.
     """
-    customer_id = payload.customer_id if payload else None
+    if payload and payload.customer_id and payload.customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot access or create cart for another user.",
+        )
+    customer_id = current_user.id
     cart = cart_service.get_or_create_active_cart(db, customer_id=customer_id)
     return cart_service.format_cart_response(cart)
 
@@ -41,11 +48,18 @@ def create_or_get_cart(
 )
 def get_cart(
     customer_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Retrieves the customer's active cart. Returns 404 if no active cart exists.
+    Retrieves the customer's active cart.
+    Enforces ownership: user can only access their own cart.
     """
+    if customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this cart.",
+        )
     cart = cart_service.get_active_cart(db, customer_id=customer_id)
     if not cart:
         raise HTTPException(
@@ -64,13 +78,18 @@ def get_cart(
 def add_cart_item(
     customer_id: uuid.UUID,
     payload: CartItemCreateRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Adds a product to customer's active cart.
-    Price is fetched strictly server-side from products table.
-    If product already exists in cart, increments quantity.
+    Enforces ownership and server-authoritative catalog pricing.
     """
+    if customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this cart.",
+        )
     cart = cart_service.add_item_to_cart(
         db,
         customer_id=customer_id,
@@ -90,12 +109,18 @@ def update_cart_item(
     customer_id: uuid.UUID,
     product_id: uuid.UUID,
     payload: CartItemUpdateRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Updates the quantity for a product in customer's active cart.
-    Validates inventory and recalculates line totals and cart totals.
+    Enforces ownership and validates inventory constraints.
     """
+    if customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this cart.",
+        )
     cart = cart_service.update_item_quantity(
         db,
         customer_id=customer_id,
@@ -114,11 +139,18 @@ def update_cart_item(
 def remove_cart_item(
     customer_id: uuid.UUID,
     product_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
     Removes a product item from customer's active cart and recalculates totals.
+    Enforces ownership.
     """
+    if customer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this cart.",
+        )
     cart = cart_service.remove_item_from_cart(
         db,
         customer_id=customer_id,
