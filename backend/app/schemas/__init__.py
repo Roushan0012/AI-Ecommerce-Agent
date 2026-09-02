@@ -26,6 +26,9 @@ from app.schemas.audit import (
 from app.schemas.auth import (
     Token,
     TokenPayload,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserResponse,
 )
 from app.schemas.cart import (
     CartCreateRequest,
@@ -106,4 +109,7 @@ __all__ = [
     "AgentPaymentInitiateRequest",
     "Token",
     "TokenPayload",
+    "UserRegisterRequest",
+    "UserLoginRequest",
+    "UserResponse",
 ]

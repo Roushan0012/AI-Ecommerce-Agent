@@ -161,6 +161,25 @@ POSTGRES_MIGRATION_STATEMENTS = [
         "Create index ix_audit_logs_created_at",
         "CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs(created_at)",
     ),
+    # 7. Create users table (Phase 17B)
+    (
+        "Create users table",
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY,
+            email VARCHAR(255) NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT uq_users_email UNIQUE (email)
+        )
+        """,
+    ),
+    (
+        "Create index ix_users_email",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users(email)",
+    ),
 ]
 
 

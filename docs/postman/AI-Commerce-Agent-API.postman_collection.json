@@ -2152,6 +2152,123 @@
 				"description": "Verifies that forged Razorpay webhook signatures are rejected with 400 Bad Request."
 			},
 			"response": []
+		},
+		{
+			"name": "Auth - User Registration",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201 or 409\", function () {",
+							"    pm.expect([201, 409]).to.include(pm.response.code);",
+							"});",
+							"",
+							"if (pm.response.code === 201) {",
+							"    var jsonData = pm.response.json();",
+							"    pm.test(\"Response contains id and normalized email\", function () {",
+							"        pm.expect(jsonData).to.have.property('id');",
+							"        pm.expect(jsonData).to.have.property('email');",
+							"        pm.expect(jsonData.email).to.eql(\"postman.auth@example.com\");",
+							"        pm.expect(jsonData.is_active).to.eql(true);",
+							"    });",
+							"",
+							"    pm.test(\"Sensitive credentials not exposed\", function () {",
+							"        pm.expect(jsonData).to.not.have.property('password');",
+							"        pm.expect(jsonData).to.not.have.property('password_hash');",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"Postman.Auth@Example.COM\",\n    \"password\": \"TestPassword123!\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/auth/register",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"auth",
+						"register"
+					]
+				},
+				"description": "Registers a new user with email and password."
+			},
+			"response": []
+		},
+		{
+			"name": "Auth - User Login",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"var jsonData = pm.response.json();",
+							"pm.test(\"Response contains access_token and bearer type\", function () {",
+							"    pm.expect(jsonData).to.have.property('access_token');",
+							"    pm.expect(jsonData).to.have.property('token_type');",
+							"    pm.expect(jsonData.token_type.toLowerCase()).to.eql('bearer');",
+							"    pm.expect(jsonData.access_token.length).to.be.above(20);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"postman.auth@example.com\",\n    \"password\": \"TestPassword123!\"\n}"
+				},
+				"url": {
+					"raw": "http://127.0.0.1:8000/api/auth/login",
+					"protocol": "http",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "8000",
+					"path": [
+						"api",
+						"auth",
+						"login"
+					]
+				},
+				"description": "Authenticates a registered user and returns a signed JWT access token."
+			},
+			"response": []
 		}
 	]
 }

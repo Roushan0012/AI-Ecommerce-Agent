@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.agent import router as agent_router
 from app.api.agent_commerce import router as agent_commerce_router
 from app.api.audit import router as audit_router
+from app.api.auth import router as auth_router
 from app.api.cart import router as cart_router
 from app.api.dashboard import router as dashboard_router
 from app.api.orders import router as orders_router
@@ -41,6 +42,7 @@ app.include_router(payments_router)
 app.include_router(audit_router)
 app.include_router(dashboard_router)
 app.include_router(agent_commerce_router)
+app.include_router(auth_router)
 
 
 @app.get("/api/health")

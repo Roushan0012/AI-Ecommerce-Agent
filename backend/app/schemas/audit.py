@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class AuditEventType(str, Enum):
     USER_REQUEST = "USER_REQUEST"
+    USER_REGISTERED = "USER_REGISTERED"
+    USER_LOGIN = "USER_LOGIN"
     INTENT_DETECTED = "INTENT_DETECTED"
     TOOL_CALL = "TOOL_CALL"
     TOOL_RESULT = "TOOL_RESULT"
