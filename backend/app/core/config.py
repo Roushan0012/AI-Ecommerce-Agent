@@ -63,6 +63,22 @@ class Settings:
     def COMMERCE_AGENT_KEY(self) -> str:
         return os.getenv("COMMERCE_AGENT_KEY", "ag_live_key_test_commerce_2026")
 
+    # JWT Authentication Configuration (Phase 17A)
+    @property
+    def JWT_SECRET_KEY(self) -> str:
+        return os.getenv("JWT_SECRET_KEY", "dev_jwt_secret_key_change_in_production_min_32_chars")
+
+    @property
+    def JWT_ALGORITHM(self) -> str:
+        return os.getenv("JWT_ALGORITHM", "HS256")
+
+    @property
+    def JWT_ACCESS_TOKEN_EXPIRE_MINUTES(self) -> int:
+        try:
+            return int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+        except ValueError:
+            return 60
+
     def get_database_url(self) -> str:
         url = self.DATABASE_URL
         if not url:

@@ -22,7 +22,7 @@ from app.models.product import Product
 from app.services.audit_service import audit_service
 from app.services.razorpay_service import razorpay_service
 
-VALID_AGENT_KEY = "ag_live_key_test_commerce_2026"
+VALID_AGENT_KEY = settings.COMMERCE_AGENT_KEY or "ag_live_key_test_commerce_2026"
 AUTH_HEADERS = {"X-Agent-Key": VALID_AGENT_KEY}
 
 

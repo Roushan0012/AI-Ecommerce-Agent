@@ -15,7 +15,7 @@ from app.models.cart import Cart
 from app.models.order import Order
 from app.models.product import Product
 
-VALID_AGENT_KEY = "ag_live_key_test_commerce_2026"
+VALID_AGENT_KEY = settings.COMMERCE_AGENT_KEY or "ag_live_key_test_commerce_2026"
 AUTH_HEADERS = {"X-Agent-Key": VALID_AGENT_KEY}
 
 

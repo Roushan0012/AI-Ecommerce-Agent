@@ -42,6 +42,8 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 13** | Observable Agent Audit Trail & Secret Redaction | **Complete** |
 | **Phase 14** | Merchant Dashboard & Real-Time Business Analytics | **Complete** |
 | **Phase 15** | Agent-to-Agent Commerce (Machine-to-Machine Interface) | **Complete** |
+| **Phase 16** | Adversarial Security Regression Suite & Verification | **Complete** |
+| **Phase 17A** | JWT Authentication Foundation & Argon2 Hashing | **Complete** |
 
 ---
 
