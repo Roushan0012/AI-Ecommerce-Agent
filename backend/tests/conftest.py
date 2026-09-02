@@ -26,8 +26,8 @@ def handle_test_auth_dependencies(request):
     Ensures Phase 17 tests execute strict real JWT validation and role checks
     while legacy Phase 1-16 test suites seamlessly resolve active test users.
     """
-    # If this is a Phase 17 JWT auth, role, or A2A boundary test, ensure NO dependency override is present
-    if any(k in request.node.nodeid for k in ["test_jwt_protected", "test_auth", "test_role", "test_authorization", "test_a2a"]):
+    # If this is a Phase 17 JWT auth, role, A2A boundary, or final security test, ensure NO dependency override is present
+    if any(k in request.node.nodeid for k in ["test_jwt_protected", "test_auth", "test_role", "test_authorization", "test_a2a", "test_phase17"]):
         app.dependency_overrides.pop(get_current_user, None)
         yield
         app.dependency_overrides.pop(get_current_user, None)

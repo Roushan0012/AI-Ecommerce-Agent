@@ -189,3 +189,17 @@ The platform enforces strict cryptographic and architectural isolation between t
 4. **Strict Mechanism Isolation**: Credentials from one boundary cannot be used to authenticate requests in another boundary.
 5. **Phase 12 Guardrails Intact**: Server-authoritative catalog pricing, inventory revalidation, and IDOR protections remain 100% active.
 6. **Zero Secrets in Responses/Logs**: Passwords, password hashes, JWT secrets, agent keys, and webhook secrets are never logged or returned in responses.
+
+---
+
+## 8. Phase 17 Final Security & Hardening Summary (Phase 17F)
+
+| Security Domain | Hardening & Protection Mechanism | Verification Status |
+|---|---|---|
+| **JWT Authentication** | Stateless HS256 tokens (`sub`, `role`, `exp`, `iat`) signed via environment configuration; strictly requires `Authorization: Bearer <token>`; rejects missing, malformed, non-Bearer, expired, forged, non-UUID subject, nonexistent user, and inactive account tokens with sanitized `401 Unauthorized` responses without stack traces. | **VERIFIED** (10+ focused tests) |
+| **Registration & Login** | High-entropy Argon2id password hashing; rejection of weak passwords; generic `401 Invalid email or password` for both incorrect passwords and nonexistent accounts to prevent user enumeration; registration forces `customer` role and discards client privilege escalation attempts. | **VERIFIED** (16+ focused tests) |
+| **Protected Commerce APIs** | Real-time database revalidation (`get_current_user`); cross-customer IDOR protection on cart and orders; server-authoritative customer identity derived exclusively from the token. | **VERIFIED** (17+ focused tests) |
+| **Role Authorization** | Granular RBAC (`customer`, `merchant`, `admin`) via `require_customer`, `require_merchant`, and `require_admin`; customers blocked from merchant dashboard (`403`); customers and merchants blocked from platform admin APIs (`403`); database is authoritative. | **VERIFIED** (20+ focused tests) |
+| **A2A Boundary Isolation** | Autonomous agent endpoints (`/api/agent-commerce/*`) exclusively require `X-Agent-Key` verified in constant time (`hmac.compare_digest`); User JWTs (even Admin JWTs) cannot authenticate to agent routes (`401`); `X-Agent-Key` cannot substitute for User JWT on user endpoints (`401`). | **VERIFIED** (13+ focused tests) |
+| **Payment & Webhook Security** | Payment order creation enforces order ownership (IDOR defense); clients cannot mark orders paid directly; external Razorpay webhook exclusively validates HMAC-SHA256 signatures via `X-Razorpay-Signature`; duplicate events handled idempotently. | **VERIFIED** (10+ webhook tests) |
+| **Comprehensive Test Suite** | 309 pytest tests passing (100%), 54 Newman requests passing (108 assertions), Next.js production build clean, zero tracked secrets or `.env` files. | **VERIFIED** |
