@@ -675,6 +675,22 @@ export async function fetchCart(customerId: string): Promise<CartResponse> {
     cache: "no-store",
   });
 
+  if (response.status === 404) {
+    return {
+      id: "",
+      customer_id: customerId,
+      status: "active",
+      currency: "INR",
+      items: [],
+      item_count: 0,
+      subtotal: "0.00",
+      discount: "0.00",
+      total: "0.00",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const message =
@@ -685,6 +701,121 @@ export async function fetchCart(customerId: string): Promise<CartResponse> {
   }
 
   return response.json();
+}
+
+export async function updateCartItemQuantity(
+  customerId: string,
+  productId: string,
+  quantity: number
+): Promise<CartResponse> {
+  if (quantity < 1) {
+    throw new Error("Quantity must be at least 1.");
+  }
+
+  const response = await authFetch(
+    `${API_BASE_URL}/api/cart/${customerId}/items/${productId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ quantity }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `Failed to update cart item quantity (status ${response.status})`;
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function removeCartItem(
+  customerId: string,
+  productId: string
+): Promise<CartResponse> {
+  const response = await authFetch(
+    `${API_BASE_URL}/api/cart/${customerId}/items/${productId}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `Failed to remove item from cart (status ${response.status})`;
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+/**
+ * Computes an optimistic CartResponse when an item's quantity changes.
+ * Used for instant UI responsiveness prior to backend authoritative reconciliation.
+ */
+export function applyOptimisticQuantity(
+  cart: CartResponse,
+  productId: string,
+  newQuantity: number
+): CartResponse {
+  if (newQuantity < 1) return cart;
+
+  const items = cart.items.map((item) => {
+    if (item.product_id === productId) {
+      const unit = Number(item.unit_price) || 0;
+      const total = (unit * newQuantity).toFixed(2);
+      return {
+        ...item,
+        quantity: newQuantity,
+        total_price: total,
+      };
+    }
+    return item;
+  });
+
+  const itemCount = items.reduce((acc, it) => acc + it.quantity, 0);
+  const subtotalNum = items.reduce((acc, it) => acc + Number(it.total_price), 0);
+  const subtotal = subtotalNum.toFixed(2);
+  const discountNum = Number(cart.discount) || 0;
+  const total = Math.max(0, subtotalNum - discountNum).toFixed(2);
+
+  return {
+    ...cart,
+    items,
+    item_count: itemCount,
+    subtotal,
+    total,
+  };
+}
+
+/**
+ * Computes an optimistic CartResponse when an item is removed.
+ * Used for instant UI responsiveness prior to backend authoritative reconciliation.
+ */
+export function applyOptimisticRemoval(
+  cart: CartResponse,
+  productId: string
+): CartResponse {
+  const items = cart.items.filter((item) => item.product_id !== productId);
+  const itemCount = items.reduce((acc, it) => acc + it.quantity, 0);
+  const subtotalNum = items.reduce((acc, it) => acc + Number(it.total_price), 0);
+  const subtotal = subtotalNum.toFixed(2);
+  const discountNum = Number(cart.discount) || 0;
+  const total = Math.max(0, subtotalNum - discountNum).toFixed(2);
+
+  return {
+    ...cart,
+    items,
+    item_count: itemCount,
+    subtotal,
+    total,
+  };
 }
 
 // -----------------------------------------------------------------------------

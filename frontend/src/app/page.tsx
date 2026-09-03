@@ -9,6 +9,8 @@ import {
   HealthResponse,
   ProductItem,
   addToCart,
+  applyOptimisticQuantity,
+  applyOptimisticRemoval,
   fetchCart,
   fetchCurrentUser,
   fetchHealth,
@@ -17,7 +19,9 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  removeCartItem,
   searchWithAgent,
+  updateCartItemQuantity,
 } from "@/lib/api";
 import { AuthUser, subscribeAuth } from "@/lib/auth";
 
@@ -213,10 +217,13 @@ export default function Home() {
   const [aiValidationError, setAiValidationError] = useState<string | null>(null);
   const [aiResponse, setAiResponse] = useState<AgentSearchResponse | null>(null);
 
-  // Step 3A: Cart mutation state
+  // Step 3A & Step 4A: Real Authenticated Cart state
   const [activeCart, setActiveCart] = useState<CartResponse | null>(null);
   const [cartItemCount, setCartItemCount] = useState<number>(0);
   const [addingProductId, setAddingProductId] = useState<string | null>(null);
+  const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+  const [cartLoading, setCartLoading] = useState<boolean>(false);
+  const [cartMutatingId, setCartMutatingId] = useState<string | null>(null);
 
   // Product Detail Modal state
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
@@ -237,16 +244,31 @@ export default function Home() {
     }, 3500);
   };
 
-  // Close Product Details modal with Escape key
+  // Close modals with Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isDetailModalOpen) {
-        handleCloseProductDetail();
+      if (e.key === "Escape") {
+        if (isCartOpen) setIsCartOpen(false);
+        if (isDetailModalOpen) handleCloseProductDetail();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDetailModalOpen]);
+  }, [isCartOpen, isDetailModalOpen]);
+
+  // Synchronize authenticated customer cart with backend
+  const syncCart = useCallback(async (customerId: string) => {
+    setCartLoading(true);
+    try {
+      const cart = await fetchCart(customerId);
+      setActiveCart(cart);
+      setCartItemCount(cart.item_count || 0);
+    } catch {
+      // Cart will be auto-created on first item add
+    } finally {
+      setCartLoading(false);
+    }
+  }, []);
 
   // Open Product Detail modal and fetch authoritative product details
   const handleOpenProductDetail = async (productId: string) => {
@@ -278,17 +300,6 @@ export default function Home() {
     setDetailError(null);
     setDetailLoading(false);
   };
-
-  // Synchronize authenticated customer cart
-  const syncCart = useCallback(async (customerId: string) => {
-    try {
-      const cart = await fetchCart(customerId);
-      setActiveCart(cart);
-      setCartItemCount(cart.item_count || 0);
-    } catch {
-      // Cart will be auto-created on first item add
-    }
-  }, []);
 
   // Load catalog from backend
   const loadCatalog = useCallback(
@@ -357,6 +368,7 @@ export default function Home() {
         } else {
           setActiveCart(null);
           setCartItemCount(0);
+          setIsCartOpen(false);
         }
       }
     });
@@ -432,7 +444,7 @@ export default function Home() {
     setAiValidationError(null);
   };
 
-  // Step 3A: Real authenticated Add to Cart mutation (Reused in card and detail modal)
+  // Step 3A: Real authenticated Add to Cart mutation
   const handleAddToCart = async (product: ProductItem) => {
     // 1. Client-side stock check
     if (product.inventory <= 0) {
@@ -466,6 +478,76 @@ export default function Home() {
       showToast(`Cart Error: ${errorMsg}`, "error");
     } finally {
       setAddingProductId(null);
+    }
+  };
+
+  // Step 4A: Cart Quantity Update handler (Optimistic UI with Authoritative Rollback)
+  const handleUpdateCartQuantity = async (productId: string, newQty: number) => {
+    if (!currentUser) return;
+    if (newQty < 1) return;
+    if (cartMutatingId === productId) return; // Prevent concurrent requests for the same item
+
+    const previousCart = activeCart;
+    if (!previousCart) return;
+
+    // 1. Optimistically compute and apply state immediately (0ms UI latency)
+    const optimisticCart = applyOptimisticQuantity(previousCart, productId, newQty);
+    setActiveCart(optimisticCart);
+    setCartItemCount(optimisticCart.item_count);
+    setCartMutatingId(productId);
+
+    try {
+      // 2. Dispatch real authoritative mutation in the background
+      const backendCart = await updateCartItemQuantity(currentUser.id, productId, newQty);
+      // 3. Reconcile with authoritative backend truth
+      setActiveCart(backendCart);
+      setCartItemCount(backendCart.item_count);
+    } catch (err: unknown) {
+      // 4. Failure rollback: restore previous cart state
+      setActiveCart(previousCart);
+      setCartItemCount(previousCart.item_count);
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Failed to update item quantity.";
+      showToast(`Cart Error: ${errorMsg}`, "error");
+    } finally {
+      setCartMutatingId(null);
+    }
+  };
+
+  // Step 4A: Remove Cart Item handler (Optimistic UI with Authoritative Rollback)
+  const handleRemoveCartItem = async (productId: string) => {
+    if (!currentUser) return;
+    if (cartMutatingId === productId) return; // Prevent concurrent requests for the same item
+
+    const previousCart = activeCart;
+    if (!previousCart) return;
+
+    // 1. Optimistically remove item and recalculate totals immediately (0ms UI latency)
+    const optimisticCart = applyOptimisticRemoval(previousCart, productId);
+    setActiveCart(optimisticCart);
+    setCartItemCount(optimisticCart.item_count);
+    setCartMutatingId(productId);
+
+    try {
+      // 2. Dispatch real authoritative DELETE in the background
+      const backendCart = await removeCartItem(currentUser.id, productId);
+      // 3. Reconcile with authoritative backend truth
+      setActiveCart(backendCart);
+      setCartItemCount(backendCart.item_count);
+      showToast("Removed product from cart.", "info");
+    } catch (err: unknown) {
+      // 4. Failure rollback: restore previous cart state
+      setActiveCart(previousCart);
+      setCartItemCount(previousCart.item_count);
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Failed to remove product from cart.";
+      showToast(`Cart Error: ${errorMsg}`, "error");
+    } finally {
+      setCartMutatingId(null);
     }
   };
 
@@ -534,6 +616,7 @@ export default function Home() {
     setCurrentUser(null);
     setActiveCart(null);
     setCartItemCount(0);
+    setIsCartOpen(false);
     setAuthSuccess(null);
     setAuthError(null);
   };
@@ -606,20 +689,45 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Authenticated Cart Status Pill */}
-            {currentUser && cartItemCount > 0 && (
-              <div className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-950/50 px-3 py-1.5 text-xs font-semibold text-indigo-300 shadow-sm">
-                <span>🛒</span>
-                <span>
-                  {cartItemCount} item{cartItemCount > 1 ? "s" : ""}
-                </span>
-                {activeCart && (
-                  <span className="font-mono text-white text-[11px]">
-                    ({formatCurrency(activeCart.total)})
-                  </span>
+            {/* Clickable Cart Indicator Button (Step 4A) */}
+            <button
+              type="button"
+              data-testid="header-cart-btn"
+              onClick={() => {
+                setIsCartOpen(true);
+                if (currentUser) {
+                  syncCart(currentUser.id);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-semibold shadow-sm transition cursor-pointer ${
+                currentUser && cartItemCount > 0
+                  ? "border-indigo-500/50 bg-indigo-950/60 text-indigo-300 hover:bg-indigo-900/60 hover:text-white"
+                  : "border-zinc-800 bg-zinc-900/80 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800 hover:text-white"
+              }`}
+              aria-label="Open shopping cart"
+            >
+              <span>🛒</span>
+              <span>
+                Cart
+                {currentUser ? (
+                  <>
+                    {" "}
+                    (
+                    <strong data-testid="header-cart-count" className="text-white">
+                      {cartItemCount}
+                    </strong>
+                    )
+                    {activeCart && Number(activeCart.total) > 0 && (
+                      <span className="hidden sm:inline-block ml-1 font-mono text-white text-[11px]">
+                        {formatCurrency(activeCart.total)}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  ""
                 )}
-              </div>
-            )}
+              </span>
+            </button>
 
             {/* Merchant Dashboard Link */}
             <Link
@@ -1109,6 +1217,229 @@ export default function Home() {
           )}
         </section>
       </main>
+
+      {/* Step 4A: Real Authenticated Shopping Cart Modal / Drawer */}
+      {isCartOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsCartOpen(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="shopping-cart-title"
+        >
+          <div className="relative w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900/95 p-6 sm:p-8 shadow-2xl shadow-indigo-950/20 space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Cart Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-950/50 px-3 py-0.5 text-xs font-semibold text-indigo-300">
+                  <span>🛒</span>
+                  <span id="shopping-cart-title">Your Shopping Cart</span>
+                </span>
+                {currentUser && (
+                  <span className="text-xs font-mono text-zinc-400">
+                    ({cartItemCount} item{cartItemCount === 1 ? "" : "s"})
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(false)}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white text-base font-bold transition cursor-pointer"
+                aria-label="Close cart"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* If Unauthenticated: Direct to Sign In */}
+            {!currentUser ? (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8 text-center space-y-4">
+                <div className="text-3xl">🔒</div>
+                <h3 className="text-base font-bold text-white">
+                  Sign In to Access Your Cart
+                </h3>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  Your cart items are securely saved to your customer account on the backend. Please sign in or create an account to view and manage your items.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCartOpen(false);
+                    setAuthPromptReason("Please sign in or create an account to view and manage your cart.");
+                    setShowAuthModal(true);
+                  }}
+                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition cursor-pointer"
+                >
+                  Sign In / Create Account
+                </button>
+              </div>
+            ) : cartLoading && !activeCart ? (
+              /* Loading State */
+              <div className="py-16 text-center space-y-3">
+                <div className="text-3xl animate-spin inline-block">⏳</div>
+                <h4 className="text-sm font-bold text-zinc-200">
+                  Synchronizing cart with backend...
+                </h4>
+                <p className="text-xs font-mono text-zinc-500">
+                  GET /api/cart/{currentUser.id}
+                </p>
+              </div>
+            ) : !activeCart || activeCart.items.length === 0 ? (
+              /* Empty Cart State */
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-10 text-center space-y-4">
+                <div className="text-4xl">🛒</div>
+                <h3 className="text-base font-bold text-white">Your cart is empty</h3>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  Explore our catalog or ask the AI Shopping Assistant for smart recommendations to add gear to your cart.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsCartOpen(false)}
+                  className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+                >
+                  Continue Shopping
+                </button>
+              </div>
+            ) : (
+              /* Real Backend Cart Items List */
+              <div className="space-y-6">
+                <div className="space-y-3 divide-y divide-zinc-800/80">
+                  {activeCart.items.map((item) => (
+                    <div
+                      key={item.id}
+                      data-testid={`cart-row-${item.product_id}`}
+                      className="pt-3.5 first:pt-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-white leading-tight">
+                          {item.product_name}
+                        </h4>
+                        <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono">
+                          <span>SKU: {item.sku}</span>
+                          {item.category && <span>• {item.category}</span>}
+                        </div>
+                        <p className="text-xs text-zinc-300">
+                          Unit price:{" "}
+                          <strong className="text-white">
+                            {formatCurrency(item.unit_price)}
+                          </strong>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-3.5">
+                        {/* Quantity Controls (Increment, Decrement, Min 1) */}
+                        <div className="inline-flex items-center rounded-xl border border-zinc-700 bg-zinc-950 p-1">
+                          <button
+                            type="button"
+                            data-testid={`dec-qty-${item.product_id}`}
+                            onClick={() =>
+                              handleUpdateCartQuantity(item.product_id, item.quantity - 1)
+                            }
+                            disabled={
+                              item.quantity <= 1 || cartMutatingId === item.product_id
+                            }
+                            className="h-7 w-7 rounded-lg bg-zinc-800 text-xs font-bold text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer flex items-center justify-center"
+                            aria-label={`Decrease quantity of ${item.product_name}`}
+                          >
+                            −
+                          </button>
+                          <span
+                            data-testid={`qty-val-${item.product_id}`}
+                            className="w-8 text-center text-xs font-mono font-bold text-white"
+                          >
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            data-testid={`inc-qty-${item.product_id}`}
+                            onClick={() =>
+                              handleUpdateCartQuantity(item.product_id, item.quantity + 1)
+                            }
+                            disabled={cartMutatingId === item.product_id}
+                            className="h-7 w-7 rounded-lg bg-zinc-800 text-xs font-bold text-zinc-200 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer flex items-center justify-center"
+                            aria-label={`Increase quantity of ${item.product_name}`}
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {/* Line Total */}
+                        <div className="text-right min-w-[75px]">
+                          <span className="text-[10px] text-zinc-500 uppercase block">
+                            Line Total
+                          </span>
+                          <span className="text-sm font-bold text-white font-mono">
+                            {formatCurrency(item.total_price)}
+                          </span>
+                        </div>
+
+                        {/* Remove Action Button */}
+                        <button
+                          type="button"
+                          data-testid={`remove-item-${item.product_id}`}
+                          onClick={() => handleRemoveCartItem(item.product_id)}
+                          disabled={cartMutatingId === item.product_id}
+                          className="rounded-lg p-1.5 text-xs text-rose-400 hover:bg-rose-950/50 hover:text-rose-300 transition cursor-pointer"
+                          title="Remove item from cart"
+                          aria-label={`Remove ${item.product_name} from cart`}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Subtotal, Item Count & Authoritative Total */}
+                <div className="pt-4 border-t border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                    <span>Total Item Count:</span>
+                    <span
+                      data-testid="cart-total-items"
+                      className="font-mono font-bold text-white"
+                    >
+                      {activeCart.item_count}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                    <span>Subtotal:</span>
+                    <span
+                      data-testid="cart-subtotal"
+                      className="font-mono font-bold text-white"
+                    >
+                      {formatCurrency(activeCart.subtotal)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm font-bold border-t border-zinc-800/80 pt-2 text-white">
+                    <span>Authoritative Total:</span>
+                    <span
+                      data-testid="cart-total-amount"
+                      className="text-xl font-black text-indigo-300 font-mono"
+                    >
+                      {formatCurrency(activeCart.total)}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-500 text-center italic">
+                    Calculated authoritatively by backend cart engine. Razorpay checkout will be enabled in next step.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCartOpen(false)}
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+                  >
+                    Continue Shopping
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Product Detail Modal (Authoritative Backend Data) */}
       {isDetailModalOpen && (
