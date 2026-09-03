@@ -452,5 +452,34 @@ docker compose down
 - Production TLS/SSL termination & reverse proxy certificates (e.g. Let's Encrypt / Cloudflare).
 - Cloud CI/CD auto-deployment workflows.
 
+---
+
+## 13. Production Smoke Testing & Boundary Hardening (Phase 18F-4)
+
+Phase 18F-4 provides an automated end-to-end smoke-testing suite verifying the entire deployment configuration, runtime boundaries, and security enforcement:
+
+### 1. Verification Matrix
+The smoke suite ([`backend/tests/test_phase18f4_production_smoke.py`](file:///Users/roushan_iiitbgp/Desktop/AI_Agent_Ecommerce_Platform/backend/tests/test_phase18f4_production_smoke.py)) tests the following critical system boundaries:
+
+| Scope / Boundary | Tested Endpoint / Component | Validation Criteria |
+|---|---|---|
+| **Backend Process Liveness** | `GET /api/health` | HTTP 200 OK, `status: ok`, `service: ai-commerce-agent-api`, zero sensitive info. |
+| **Database Readiness** | `GET /api/health/database` | Distinguishes process liveness from DB connectivity. Rejection of credential leaks. |
+| **Frontend Production Lifecycle** | `frontend/Dockerfile`, `api.ts` | Non-root `nextjs` user, `npm run build`, `npm start`, correct `NEXT_PUBLIC_API_BASE_URL`. |
+| **Public Commerce API** | `GET /api/products` | HTTP 200 OK, non-empty catalog items, server-authoritative pricing. |
+| **JWT Authentication Boundary** | `GET /api/auth/me` | HTTP 401 on missing token, HTTP 401 on forged signature, HTTP 200 with valid JWT. |
+| **A2A Machine Isolation** | `/api/agent-commerce/*` vs `/api/cart` | Requires `X-Agent-Key`; strictly rejects User JWTs. User cart rejects `X-Agent-Key`. |
+| **Payment Security & Webhooks** | `POST /api/payments/webhook` | Rejects forged HMAC signatures with HTTP 400. Accepts valid HMAC signatures with HTTP 200. |
+| **Production Safeguards** | `validate_production_config()` | Blocks SQLite, blocks wildcard CORS (`*`), enforces `DEBUG=False`. |
+| **Orchestration Integrity** | `docker-compose.yml` | Valid multi-container configuration, explicit service health dependencies, no hardcoded secrets. |
+| **Repository Credential Hygiene** | Repository-wide tracked scan | Zero live API keys, Razorpay live secrets, or private keys present. |
+
+### 2. Execution Command
+```bash
+# Execute Phase 18F-4 Production Smoke Suite:
+backend/.venv/bin/pytest backend/tests/test_phase18f4_production_smoke.py -v
+```
+
+
 
 

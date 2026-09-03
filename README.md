@@ -55,6 +55,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 18F-1** | Deployment Architecture & Configuration Foundation | **Complete** |
 | **Phase 18F-2** | Backend Deployment Readiness | **Complete** |
 | **Phase 18F-3** | Process Supervision & Multi-Container Orchestration | **Complete** |
+| **Phase 18F-4** | Production Smoke Testing & Boundary Hardening | **Complete** |
 
 ---
 
@@ -147,7 +148,10 @@ docker compose down
 # Frontend Tests (9 automated unit/contract tests)
 cd frontend && npm test
 
-# Backend Tests (380 tests across all phases)
+# Production Smoke Tests (10 boundary & deployment tests)
+backend/.venv/bin/pytest backend/tests/test_phase18f4_production_smoke.py -v
+
+# Backend Tests (390 tests across all phases)
 backend/.venv/bin/pytest backend/tests/ -v
 
 # Postman / Newman (35 live endpoint tests / 108 assertions)
