@@ -324,3 +324,60 @@ def test_production_configuration_safeguards_not_weakened(monkeypatch):
     with pytest.raises(ConfigurationError) as exc_info:
         prod_settings.validate_production_config()
     assert "DATABASE_URL" in str(exc_info.value)
+
+
+# ==============================================================================
+# 9. Frontend CI Test & Build Execution Ordering
+# ==============================================================================
+
+def test_frontend_test_and_build_ordering():
+    """Verify that frontend test suite executes prior to production build in CI."""
+    content, parsed = load_ci_workflow()
+
+    assert "npm test" in content, "Frontend job must execute npm test"
+    assert "npm run build" in content, "Frontend job must execute npm run build"
+
+    test_idx = content.find("npm test")
+    build_idx = content.find("npm run build")
+    assert test_idx < build_idx, "npm test must execute before npm run build in frontend-build job"
+
+    if parsed:
+        steps = parsed["jobs"]["frontend-build"]["steps"]
+        step_runs = [s.get("run", "") for s in steps]
+        test_step_idx = next((i for i, r in enumerate(step_runs) if "npm test" in r), None)
+        build_step_idx = next((i for i, r in enumerate(step_runs) if "npm run build" in r), None)
+
+        assert test_step_idx is not None, "npm test step must exist in frontend-build job"
+        assert build_step_idx is not None, "npm run build step must exist in frontend-build job"
+        assert test_step_idx < build_step_idx, "npm test step must precede npm run build"
+
+
+# ==============================================================================
+# 10. Repository-Wide Secret Leak Prevention
+# ==============================================================================
+
+def test_repository_wide_secret_leak_prevention():
+    """Verify that application source code contains zero committed credentials or private keys."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+
+    # Directories that must never contain live credentials
+    scanned_dirs = [
+        repo_root / "backend" / "app",
+        repo_root / "frontend" / "src",
+    ]
+
+    sensitive_patterns = [
+        (re.compile(r"rzp_live_[a-zA-Z0-9]{10,}"), "Live Razorpay Key"),
+        (re.compile(r"gsk_[a-zA-Z0-9]{20,}"), "Groq API Key"),
+        (re.compile(r"ghp_[a-zA-Z0-9]{20,}"), "GitHub Token"),
+        (re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----"), "Private Key Block"),
+    ]
+
+    for scan_dir in scanned_dirs:
+        assert scan_dir.exists(), f"Target directory {scan_dir} must exist"
+        for file_path in scan_dir.rglob("*"):
+            if file_path.is_file() and file_path.suffix in (".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".env"):
+                content = file_path.read_text(encoding="utf-8", errors="ignore")
+                for regex, label in sensitive_patterns:
+                    match = regex.search(content)
+                    assert match is None, f"Forbidden {label} detected in {file_path}: {match.group(0)}"

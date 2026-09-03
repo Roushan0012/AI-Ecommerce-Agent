@@ -203,3 +203,36 @@ Phase 18D establishes production-ready frontend configuration, JWT authenticatio
 - **Payment Gateway Security**: Server-side Razorpay webhook HMAC signatures and secrets remain untouched. Only the public `NEXT_PUBLIC_RAZORPAY_KEY_ID` is exposed for client checkout modal rendering.
 - **Zero Secrets in Public Environment**: `JWT_SECRET_KEY`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, and `DATABASE_URL` are strictly excluded from frontend environment files and `NEXT_PUBLIC_*` namespaces.
 
+---
+
+## 9. Continuous Integration & Pipeline Hardening (Phase 18E)
+
+Phase 18E establishes end-to-end automated validation on every commit and pull request:
+
+### 1. Workflow Architecture & Triggers
+- **File**: [`.github/workflows/ci.yml`](file:///Users/roushan_iiitbgp/Desktop/AI_Agent_Ecommerce_Platform/.github/workflows/ci.yml)
+- **Triggers**:
+  - `push` targeting `main`.
+  - `pull_request` targeting `main`.
+  - `workflow_dispatch` (on-demand manual trigger).
+- **Concurrency Control**: PR runs cancel superseded jobs automatically (`cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}`), conserving CI resources while preserving history on `main`.
+- **Least Privilege**: Global `permissions: contents: read` restricts runner tokens to read-only access.
+- **Fail-Fast Error Handling**: Strict bash defaults (`-eo pipefail`) without `continue-on-error`.
+
+### 2. Backend Test Job (`backend-tests`)
+- **Runtime**: Python 3.12 on Ubuntu Latest.
+- **Dependency Handling**: Deterministic `pip install -r backend/requirements.txt` with pip caching.
+- **Test Execution**: Full backend pytest suite (`pytest -v`) in isolated test mode (`ENVIRONMENT=test`, SQLite in-memory/file test database, deterministic mock AI provider).
+- **Security Check**: Includes repository-wide secret scanning (`test_repository_wide_secret_leak_prevention`) ensuring zero committed credentials.
+
+### 3. Frontend Test & Build Job (`frontend-build`)
+- **Runtime**: Node.js 20 on Ubuntu Latest.
+- **Dependency Handling**: Locked `npm ci` with npm caching referencing `frontend/package-lock.json`.
+- **Test Suite**: Executes `npm test` verifying client-side authentication, auth headers, token expiration, and secret boundary isolation.
+- **Production Build**: Executes `npm run build` (`NEXT_TELEMETRY_DISABLED=1`, `CI=true`) ensuring TypeScript type-checking and Next.js static page generation complete cleanly.
+
+### 4. What CI Does NOT Do
+- **No Cloud Deployment**: CI only validates code correctness and buildability; it does not deploy to production or manage cloud infrastructure (reserved for future deployment phases).
+- **No Production Secrets**: CI never connects to live databases, production Razorpay instances, or external LLM APIs.
+
+

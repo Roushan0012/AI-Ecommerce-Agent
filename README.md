@@ -51,6 +51,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 18B-2** | CI/CD Quality & Failure-Safety Hardening | **Complete** |
 | **Phase 18C** | API & Application Hardening | **Complete** |
 | **Phase 18D** | Frontend Production Configuration | **Complete** |
+| **Phase 18E** | CI/CD Pipeline Validation & Testing | **Complete** |
 
 ---
 
@@ -141,15 +142,21 @@ The repository includes an automated GitHub Actions CI pipeline defined in [.git
    - Sets up Python 3.12 with pip dependency caching based on `backend/requirements.txt`.
    - Installs locked backend dependencies via `pip install -r backend/requirements.txt`.
    - Executes the complete backend pytest suite (`pytest -v`) in isolated test mode (`ENVIRONMENT=test`).
+   - Runs automated repository-wide secret leak scanning (`test_repository_wide_secret_leak_prevention`) ensuring zero committed credentials.
    - Ensures all domain models, JWT authentication, RBAC, Agent-to-Agent boundaries, Razorpay webhooks, and security guardrails pass without regressions.
-2. **Frontend Production Build (`frontend-build`)**:
+2. **Frontend Test & Production Build (`frontend-build`)**:
    - Sets up Node.js 20 with npm dependency caching based on `frontend/package-lock.json`.
    - Installs locked frontend dependencies via clean `npm ci`.
-   - Executes `npm run build` with telemetry disabled (`NEXT_TELEMETRY_DISABLED=1`) to verify Next.js compilation, TypeScript type-checking, and static page generation.
+   - Executes `npm test` verifying client-side authentication, auth headers, token expiration, and secret boundary isolation.
+   - Executes `npm run build` with telemetry disabled (`NEXT_TELEMETRY_DISABLED=1`, `CI=true`) to verify Next.js compilation, TypeScript type-checking, and static page generation.
+
+### What CI Does NOT Do
+- **No Cloud Deployment**: CI only validates code correctness, test suites, and buildability; deployment to cloud providers or container registries is out of scope for Phase 18E and handled in future deployment phases.
+- **No Production Secrets**: CI never connects to live databases, production Razorpay instances, or external LLM APIs.
 
 ### Failure Safety & Propagation
 - **Strict Exit Codes**: All commands run under explicit bash shell defaults (`-eo pipefail`); command errors are never swallowed with `continue-on-error` or shell fallbacks.
-- **Independent Diagnostics**: Backend test failures and frontend build failures report distinctly in the GitHub Actions UI.
+- **Independent Diagnostics**: Backend test failures and frontend test/build failures report distinctly in the GitHub Actions UI.
 
 ### Troubleshooting CI Failures
 When a CI run fails, developers should check:
@@ -157,7 +164,10 @@ When a CI run fails, developers should check:
    - Reproduce locally: `backend/.venv/bin/pytest backend/tests/ -v`
    - Verify all model schemas, route handlers, or security guardrails conform to existing specifications.
    - Ensure new code does not rely on local `.env` variables without providing safe test defaults in `Settings`.
-2. **Frontend Build Failures**:
+2. **Frontend Test Failures**:
+   - Reproduce locally: `cd frontend && npm test`
+   - Check unit/contract assertions for token storage, auth headers, and secret isolation.
+3. **Frontend Build Failures**:
    - Reproduce locally: `cd frontend && npm ci && npm run build`
    - Check for TypeScript compile errors, missing typings, or broken imports.
    - Verify environment variable references use `NEXT_PUBLIC_` prefixes when required on the client side.
