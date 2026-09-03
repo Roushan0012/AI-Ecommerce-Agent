@@ -173,3 +173,33 @@ All responses automatically receive standard defensive security headers:
 ### 5. Production Logging & Secret Redaction
 - **Global Logging Filter**: `SensitiveDataRedactionFilter` automatically sanitizes all log output across root, uvicorn, and application loggers.
 - **Patterns Redacted**: Passwords, JWT access tokens, Bearer authorization headers, X-Agent-Key headers, Razorpay keys/signatures, Groq/OpenAI API keys, and PostgreSQL database URLs containing passwords.
+
+---
+
+## 8. Frontend Production Configuration & Authentication (Phase 18D)
+
+Phase 18D establishes production-ready frontend configuration, JWT authentication management, and boundary isolation:
+
+### 1. Centralized API Base URL Configuration
+- **Variable**: `NEXT_PUBLIC_API_BASE_URL`
+- **Development Default**: `http://127.0.0.1:8000`
+- **Production Deployment**: Set to the absolute HTTPS domain of the FastAPI backend (e.g. `https://api.yourdomain.com`).
+- **Implementation**: Centralized in [`frontend/src/lib/api.ts`](file:///Users/roushan_iiitbgp/Desktop/AI_Agent_Ecommerce_Platform/frontend/src/lib/api.ts), enabling deployments to connect to external backend clusters without source-code edits.
+
+### 2. Client-Side JWT Authentication Architecture
+- **Token Storage**: Only the signed JWT access token string is stored in browser storage (`localStorage`), managed via [`frontend/src/lib/auth.ts`](file:///Users/roushan_iiitbgp/Desktop/AI_Agent_Ecommerce_Platform/frontend/src/lib/auth.ts).
+- **Request Authorization**: All protected API requests (`authFetch`, `getAuthHeaders`) automatically inject `Authorization: Bearer <access_token>`.
+- **401 Unauthorized Handling**: If an API request receives a 401 response (due to expiration, revocation, or invalidation), client auth state is immediately purged via `clearAuth()`, preventing repeated failed loops.
+- **Token Expiry Detection**: Client inspects standard JWT `exp` claims (`decodeJwtPayload`, `isTokenExpired`) for early expiry detection with a 5-second clock skew buffer.
+- **Profile Hydration**: `fetchCurrentUser()` queries `GET /api/auth/me` on startup to validate the token authoritatively against the database.
+
+### 3. Role-Based Access Control Alignment
+- **Roles**: `customer`, `merchant`, `admin`.
+- **Convenience Gate**: Frontend UI guards adapt based on the user's role (e.g. merchant dashboard displays login gate for unauthenticated users or customer accounts).
+- **Security Guarantee**: Frontend role checks are treated strictly as UI convenience. The FastAPI backend with `require_merchant`, `require_admin`, and `require_customer` remains the sole authoritative RBAC security boundary.
+
+### 4. Boundary Isolation & Secret Safety
+- **Machine A2A Decoupling**: Frontend source code never references, possesses, or transmits `COMMERCE_AGENT_KEY` or the `X-Agent-Key` header. Machine commerce (`/api/agent-commerce/*`) remains strictly server-to-server.
+- **Payment Gateway Security**: Server-side Razorpay webhook HMAC signatures and secrets remain untouched. Only the public `NEXT_PUBLIC_RAZORPAY_KEY_ID` is exposed for client checkout modal rendering.
+- **Zero Secrets in Public Environment**: `JWT_SECRET_KEY`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, and `DATABASE_URL` are strictly excluded from frontend environment files and `NEXT_PUBLIC_*` namespaces.
+

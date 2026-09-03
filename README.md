@@ -50,6 +50,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 18B-1** | GitHub Actions CI Foundation Pipeline | **Complete** |
 | **Phase 18B-2** | CI/CD Quality & Failure-Safety Hardening | **Complete** |
 | **Phase 18C** | API & Application Hardening | **Complete** |
+| **Phase 18D** | Frontend Production Configuration | **Complete** |
 
 ---
 
@@ -78,6 +79,13 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 - **Error Handling & Information Disclosure**: Sensitive fields (passwords, tokens, keys) automatically redacted from `422` validation responses; generic masked responses for unhandled `500` server errors in production.
 - **Secret-Free Logging**: Automated `SensitiveDataRedactionFilter` scrubbing passwords, JWTs, Bearer tokens, API keys, and database passwords from all loggers.
 
+### 5. Frontend Production Configuration & Authentication (Phase 18D)
+- **Centralized API Base URL**: Driven by `NEXT_PUBLIC_API_BASE_URL` with local development fallback (`http://127.0.0.1:8000`), allowing external backend binding without code edits.
+- **Client-Side JWT Management**: Secure `localStorage` access token caching with automatic expiry detection and reactive UI state synchronization.
+- **Authenticated Request Layer**: Protected API requests inject `Authorization: Bearer <access_token>`; `401 Unauthorized` automatically purges expired client tokens.
+- **Role-Aware UI Convenience**: UI dynamically adapts for `customer`, `merchant`, and `admin` roles, backed by strict server-side RBAC validation.
+- **Machine Key Isolation**: Frontend code strictly decoupled from `COMMERCE_AGENT_KEY` / `X-Agent-Key` and backend secrets.
+
 ---
 
 ## Running the Platform
@@ -100,7 +108,10 @@ npm run dev
 
 ### Running Test Suites
 ```bash
-# Pytest (352 tests across all phases)
+# Frontend Tests (9 automated unit/contract tests)
+cd frontend && npm test
+
+# Backend Tests (358 tests across all phases)
 backend/.venv/bin/pytest backend/tests/ -v
 
 # Postman / Newman (35 live endpoint tests / 108 assertions)

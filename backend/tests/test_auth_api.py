@@ -315,3 +315,50 @@ def test_auth_endpoints_never_expose_secrets_or_passwords():
     assert "$argon2id$" not in login_text
     assert settings.JWT_SECRET_KEY not in login_text
 
+
+def test_get_current_user_me_endpoint():
+    """14. GET /api/auth/me returns profile for valid JWT and 401 for unauthenticated/invalid requests."""
+    client, _ = get_test_app_client()
+    email = "me.profile@example.com"
+    password = "MySecurePassword123!"
+
+    # 1. Register user
+    reg_res = client.post(
+        "/api/auth/register",
+        json={"email": email, "password": password},
+    )
+    assert reg_res.status_code == 201
+    user_id = reg_res.json()["id"]
+
+    # 2. Login to get token
+    login_res = client.post(
+        "/api/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+
+    # 3. GET /api/auth/me with valid Bearer token
+    me_res = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert me_res.status_code == 200
+    me_data = me_res.json()
+    assert me_data["id"] == user_id
+    assert me_data["email"] == email
+    assert me_data["role"] == "customer"
+    assert me_data["is_active"] is True
+
+    # 4. GET /api/auth/me without token -> 401
+    unauth_res = client.get("/api/auth/me")
+    assert unauth_res.status_code == 401
+
+    # 5. GET /api/auth/me with bogus token -> 401
+    bad_res = client.get(
+        "/api/auth/me",
+        headers={"Authorization": "Bearer invalid_tampered_token_xyz"},
+    )
+    assert bad_res.status_code == 401
+
+

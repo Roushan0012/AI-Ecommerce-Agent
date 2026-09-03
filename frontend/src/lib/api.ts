@@ -1,3 +1,25 @@
+/**
+ * Production API Client & Request Handling (Phase 18D).
+ *
+ * Centralizes all frontend HTTP requests to the backend service.
+ * Automatically injects the JWT access token as Authorization: Bearer <token>
+ * on authenticated requests and clears client auth state on 401 Unauthorized.
+ *
+ * SECURITY GUARANTEES:
+ * - API base URL is driven by NEXT_PUBLIC_API_BASE_URL (defaults to http://127.0.0.1:8000).
+ * - Never includes or transmits machine agent authentication headers.
+ * - Never exposes signing keys or backend secrets to the browser.
+ */
+
+import {
+  AuthUser,
+  clearAuth,
+  getStoredToken,
+  isTokenExpired,
+  setStoredToken,
+  setStoredUser,
+} from "./auth";
+
 export interface HealthResponse {
   status: string;
   service: string;
@@ -70,8 +92,70 @@ export interface DashboardActivityResponse {
   total: number;
 }
 
-export const API_BASE_URL =
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in?: number;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+export const API_BASE_URL: string =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+
+/**
+ * Constructs standard headers, optionally attaching Authorization: Bearer <token>.
+ */
+export function getAuthHeaders(
+  extraHeaders: Record<string, string> = {}
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...extraHeaders,
+  };
+
+  const token = getStoredToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
+/**
+ * Standard fetch wrapper that handles Authorization headers and 401 state invalidation.
+ */
+export async function authFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const customHeaders = (options.headers as Record<string, string>) || {};
+  const mergedHeaders = getAuthHeaders(customHeaders);
+
+  const response = await fetch(url, {
+    ...options,
+    headers: mergedHeaders,
+  });
+
+  if (response.status === 401) {
+    // Invalidate client authentication state on rejected or expired credentials
+    clearAuth();
+  }
+
+  return response;
+}
+
+// -----------------------------------------------------------------------------
+// Public Endpoints
+// -----------------------------------------------------------------------------
 
 export async function fetchHealth(): Promise<HealthResponse> {
   const response = await fetch(`${API_BASE_URL}/api/health`, {
@@ -90,16 +174,117 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return data;
 }
 
-export async function fetchDashboardOverview(): Promise<OverviewMetricsResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/dashboard/overview`, {
-    method: "GET",
+// -----------------------------------------------------------------------------
+// Authentication Endpoints
+// -----------------------------------------------------------------------------
+
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<{ token: string; user: AuthUser }> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `Login failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const tokenData: TokenResponse = await response.json();
+  setStoredToken(tokenData.access_token);
+
+  // Fetch authoritative user profile with the newly issued token
+  const meResponse = await authFetch(`${API_BASE_URL}/api/auth/me`);
+  if (!meResponse.ok) {
+    clearAuth();
+    throw new Error("Failed to load user profile after login");
+  }
+
+  const user: AuthUser = await meResponse.json();
+  setStoredUser(user);
+
+  return { token: tokenData.access_token, user };
+}
+
+export async function registerUser(
+  email: string,
+  password: string
+): Promise<AuthUser> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : Array.isArray(errorData.detail)
+        ? errorData.detail.map((e: { msg?: string }) => e.msg).join(", ")
+        : `Registration failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const user: AuthUser = await response.json();
+  return user;
+}
+
+export async function fetchCurrentUser(): Promise<AuthUser | null> {
+  const token = getStoredToken();
+  if (!token || isTokenExpired(token)) {
+    clearAuth();
+    return null;
+  }
+
+  try {
+    const response = await authFetch(`${API_BASE_URL}/api/auth/me`);
+    if (!response.ok) {
+      clearAuth();
+      return null;
+    }
+    const user: AuthUser = await response.json();
+    setStoredUser(user);
+    return user;
+  } catch {
+    clearAuth();
+    return null;
+  }
+}
+
+export function logoutUser(): void {
+  clearAuth();
+}
+
+// -----------------------------------------------------------------------------
+// Protected Merchant Dashboard Endpoints
+// -----------------------------------------------------------------------------
+
+export async function fetchDashboardOverview(): Promise<OverviewMetricsResponse> {
+  const response = await authFetch(`${API_BASE_URL}/api/dashboard/overview`, {
+    method: "GET",
     cache: "no-store",
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication required. Please log in to view merchant data.");
+    }
+    if (response.status === 403) {
+      throw new Error("Access forbidden. Merchant or admin role is required.");
+    }
     throw new Error(`Failed to load dashboard overview (status ${response.status})`);
   }
 
@@ -110,18 +295,21 @@ export async function fetchDashboardOrders(
   page: number = 1,
   pageSize: number = 10
 ): Promise<DashboardOrdersResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/dashboard/orders?page=${page}&page_size=${pageSize}`,
     {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
       cache: "no-store",
     }
   );
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication required. Please log in to view merchant data.");
+    }
+    if (response.status === 403) {
+      throw new Error("Access forbidden. Merchant or admin role is required.");
+    }
     throw new Error(`Failed to load dashboard orders (status ${response.status})`);
   }
 
@@ -131,33 +319,37 @@ export async function fetchDashboardOrders(
 export async function fetchDashboardActivity(
   limit: number = 10
 ): Promise<DashboardActivityResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${API_BASE_URL}/api/dashboard/activity?limit=${limit}`,
     {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
       cache: "no-store",
     }
   );
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Authentication required. Please log in to view merchant data.");
+    }
+    if (response.status === 403) {
+      throw new Error("Access forbidden. Merchant or admin role is required.");
+    }
     throw new Error(`Failed to load dashboard activity (status ${response.status})`);
   }
 
   return response.json();
 }
 
+// -----------------------------------------------------------------------------
+// Payment Endpoints
+// -----------------------------------------------------------------------------
+
 export async function createPaymentOrder(
   orderId: string,
   customerId?: string
 ): Promise<PaymentOrderResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/payments/create-order`, {
+  const response = await authFetch(`${API_BASE_URL}/api/payments/create-order`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify({
       order_id: orderId,
       customer_id: customerId || undefined,
