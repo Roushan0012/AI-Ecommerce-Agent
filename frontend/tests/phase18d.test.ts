@@ -26,7 +26,7 @@ import {
   TOKEN_STORAGE_KEY,
   USER_STORAGE_KEY,
 } from "../src/lib/auth";
-import { getAuthHeaders, authFetch, API_BASE_URL } from "../src/lib/api";
+import { getAuthHeaders, authFetch, API_BASE_URL, fetchProducts } from "../src/lib/api";
 
 // In-memory localStorage mock for node test runner
 class MockLocalStorage {
@@ -218,4 +218,93 @@ test("9. Frontend .env.example contains only safe NEXT_PUBLIC_* placeholders and
   // Ensure public API base URL is present
   assert.ok(content.includes("NEXT_PUBLIC_API_BASE_URL="));
   assert.ok(content.includes("NEXT_PUBLIC_RAZORPAY_KEY_ID="));
+});
+
+test("10. fetchProducts constructs correct GET /api/products query parameters", async () => {
+  const originalFetch = global.fetch;
+  let requestedUrl = "";
+
+  (global as unknown as { fetch: unknown }).fetch = async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        items: [
+          {
+            id: "prod-1",
+            merchant_id: "merch-1",
+            name: "Wireless Headphones",
+            description: "ANC headphones",
+            category: "Audio",
+            price: "14999.00",
+            currency: "INR",
+            inventory: 10,
+            sku: "AUD-01",
+            attributes: {},
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 12,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  };
+
+  try {
+    const result = await fetchProducts({
+      search: "headphones",
+      category: "Audio",
+      page: 2,
+      page_size: 12,
+      available: true,
+    });
+
+    assert.ok(requestedUrl.includes("/api/products?"));
+    assert.ok(requestedUrl.includes("search=headphones"));
+    assert.ok(requestedUrl.includes("category=Audio"));
+    assert.ok(requestedUrl.includes("page=2"));
+    assert.ok(requestedUrl.includes("page_size=12"));
+    assert.ok(requestedUrl.includes("available=true"));
+    assert.equal(result.items.length, 1);
+    assert.equal(result.items[0].name, "Wireless Headphones");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("11. fetchProducts ignores category 'All' and empty search to fetch full catalog", async () => {
+  const originalFetch = global.fetch;
+  let requestedUrl = "";
+
+  (global as unknown as { fetch: unknown }).fetch = async (input: RequestInfo | URL) => {
+    requestedUrl = String(input);
+    return new Response(
+      JSON.stringify({
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 12,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  };
+
+  try {
+    await fetchProducts({
+      search: "",
+      category: "All",
+      page: 1,
+      page_size: 12,
+    });
+
+    assert.ok(!requestedUrl.includes("category=All"));
+    assert.ok(!requestedUrl.includes("search="));
+    assert.ok(requestedUrl.includes("page=1"));
+    assert.ok(requestedUrl.includes("page_size=12"));
+  } finally {
+    global.fetch = originalFetch;
+  }
 });

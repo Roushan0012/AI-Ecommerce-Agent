@@ -25,6 +25,39 @@ export interface HealthResponse {
   service: string;
 }
 
+export interface ProductItem {
+  id: string;
+  merchant_id: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  price: string | number;
+  currency: string;
+  inventory: number;
+  sku: string;
+  attributes: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductListResponse {
+  items: ProductItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface FetchProductsParams {
+  search?: string;
+  category?: string;
+  min_price?: number;
+  max_price?: number;
+  available?: boolean;
+  page?: number;
+  page_size?: number;
+}
+
 export interface PaymentOrderResponse {
   payment_id: string;
   order_id: string;
@@ -171,6 +204,57 @@ export async function fetchHealth(): Promise<HealthResponse> {
   }
 
   const data: HealthResponse = await response.json();
+  return data;
+}
+
+export async function fetchProducts(
+  params: FetchProductsParams = {}
+): Promise<ProductListResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (params.search && params.search.trim()) {
+    searchParams.set("search", params.search.trim());
+  }
+  if (params.category && params.category !== "All") {
+    searchParams.set("category", params.category);
+  }
+  if (params.min_price !== undefined) {
+    searchParams.set("min_price", params.min_price.toString());
+  }
+  if (params.max_price !== undefined) {
+    searchParams.set("max_price", params.max_price.toString());
+  }
+  if (params.available !== undefined) {
+    searchParams.set("available", params.available.toString());
+  }
+  if (params.page !== undefined) {
+    searchParams.set("page", params.page.toString());
+  }
+  if (params.page_size !== undefined) {
+    searchParams.set("page_size", params.page_size.toString());
+  }
+
+  const queryString = searchParams.toString();
+  const url = `${API_BASE_URL}/api/products${queryString ? `?${queryString}` : ""}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `Failed to fetch products (status ${response.status})`;
+    throw new Error(message);
+  }
+
+  const data: ProductListResponse = await response.json();
   return data;
 }
 
