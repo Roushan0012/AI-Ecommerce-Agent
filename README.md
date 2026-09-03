@@ -48,6 +48,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 17C** | JWT Protected APIs & Ownership Verification | **Complete** |
 | **Phase 18A** | Production Configuration & Environment Hardening | **Complete** |
 | **Phase 18B-1** | GitHub Actions CI Foundation Pipeline | **Complete** |
+| **Phase 18B-2** | CI/CD Quality & Failure-Safety Hardening | **Complete** |
 
 ---
 
@@ -100,7 +101,7 @@ npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 
 ---
 
-## Continuous Integration (CI Pipeline)
+## Continuous Integration (CI/CD Pipeline)
 
 The repository includes an automated GitHub Actions CI pipeline defined in [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
@@ -108,27 +109,33 @@ The repository includes an automated GitHub Actions CI pipeline defined in [.git
 - **Pushes** targeting the `main` branch.
 - **Pull Requests** targeting the `main` branch.
 - **Manual Trigger** (`workflow_dispatch`) for on-demand verification.
+- **Concurrency Cancellation**: Superseded pull request runs are automatically canceled to conserve runner resources while keeping full history on `main`.
+
+### Security Hardening & Permissions
+- **Principle of Least Privilege**: CI runs with `permissions: contents: read` to prevent unauthorized repository write access.
+- **Zero Secrets Required**: The pipeline relies entirely on isolated test/development defaults and mock providers. No production credentials, Supabase database URLs, or Razorpay live keys are configured or exposed in CI.
+- **No Artifact Leakage**: No `.env` files, build caches, or credentials are saved or published as artifacts.
+- **Secrets Protection**: Production `.env` and `.env.local` files are ignored by git and never committed or printed in CI logs.
 
 ### What It Validates
 1. **Backend Test Suite (`backend-tests`)**:
    - Sets up Python 3.12 with pip dependency caching based on `backend/requirements.txt`.
-   - Installs backend dependencies via `pip install -r backend/requirements.txt`.
+   - Installs locked backend dependencies via `pip install -r backend/requirements.txt`.
    - Executes the complete backend pytest suite (`pytest -v`) in isolated test mode (`ENVIRONMENT=test`).
    - Ensures all domain models, JWT authentication, RBAC, Agent-to-Agent boundaries, Razorpay webhooks, and security guardrails pass without regressions.
 2. **Frontend Production Build (`frontend-build`)**:
    - Sets up Node.js 20 with npm dependency caching based on `frontend/package-lock.json`.
    - Installs locked frontend dependencies via clean `npm ci`.
-   - Executes `npm run build` to verify Next.js compilation, TypeScript type-checking, and static page generation.
+   - Executes `npm run build` with telemetry disabled (`NEXT_TELEMETRY_DISABLED=1`) to verify Next.js compilation, TypeScript type-checking, and static page generation.
 
-### Environment & Secrets Safety
-- **Zero Production Secrets in Repository**: The CI pipeline requires no production secrets or cloud credentials stored in repository secrets.
-- **Isolated Test Mode**: Backend tests run with safe test/development fallback configuration and an isolated SQLite test database (`ci_test.db`).
-- **Secrets Protection**: Production `.env` and `.env.local` files are ignored by git and never committed or exposed in CI logs or artifacts.
+### Failure Safety & Propagation
+- **Strict Exit Codes**: All commands run under explicit bash shell defaults (`-eo pipefail`); command errors are never swallowed with `continue-on-error` or shell fallbacks.
+- **Independent Diagnostics**: Backend test failures and frontend build failures report distinctly in the GitHub Actions UI.
 
 ### Troubleshooting CI Failures
 When a CI run fails, developers should check:
 1. **Backend Test Failures**:
-   - Reproduce locally: `backend/.venv/bin/pytest backend/tests -v`
+   - Reproduce locally: `backend/.venv/bin/pytest backend/tests/ -v`
    - Verify all model schemas, route handlers, or security guardrails conform to existing specifications.
    - Ensure new code does not rely on local `.env` variables without providing safe test defaults in `Settings`.
 2. **Frontend Build Failures**:

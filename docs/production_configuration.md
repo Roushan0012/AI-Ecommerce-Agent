@@ -94,9 +94,46 @@ Cross-Origin Resource Sharing is controlled via the `CORS_ORIGINS` environment v
 
 ---
 
-## 6. Continuous Integration (CI) Security
+## 6. Continuous Integration (CI/CD) Quality & Failure Safety (Phase 18B-2)
 
-The automated GitHub Actions CI pipeline ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on pushes and pull requests targeting `main`.
-- **Zero Production Secrets in CI**: CI runs with `ENVIRONMENT=test` and an isolated SQLite test database. Production credentials, Supabase database URLs, and live payment keys are not stored in GitHub repository secrets or accessed in CI runs.
-- **Production Guardrail Integrity**: CI validates that all unit tests and security regression tests pass without weakening production validation safeguards.
+The automated GitHub Actions CI pipeline ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) validates every push and pull request targeting `main`.
+
+### Validation Scope
+1. **Backend Test Suite (`backend-tests`)**:
+   - Sets up Python 3.12 runner with pip caching keyed on `backend/requirements.txt`.
+   - Installs pinned dependencies from `backend/requirements.txt`.
+   - Executes the full backend test suite (`pytest -v`) under `ENVIRONMENT=test`, SQLite isolated database, and mock AI provider.
+   - Validates models, business rules, payment flows, A2A machine endpoints, RBAC, and security regression guardrails.
+2. **Frontend Production Build (`frontend-build`)**:
+   - Sets up Node.js 20 runner with npm caching keyed on `frontend/package-lock.json`.
+   - Installs dependencies reproducibly using `npm ci`.
+   - Executes `npm run build` to verify TypeScript compile integrity, Turbopack packaging, and Next.js static page generation.
+
+### Failure Propagation & Fail-Fast Safety
+- **No Error Suppression**: No required job or step uses `continue-on-error: true`.
+- **Exit Code Integrity**: Pytest and Next.js build run as direct shell commands; multi-line scripts run with explicit bash shell defaults (`-eo pipefail`).
+- **Independent Diagnostics**: Backend and frontend jobs run independently in parallel, providing clear visual diagnosis in the GitHub Actions UI.
+- **Concurrency Control**: Concurrency groups (`${{ github.workflow }}-${{ github.ref }}`) automatically cancel superseded runs on open pull requests while allowing full commit runs to complete on `main`.
+
+### Dependency Determinism
+- Backend uses explicit `pip install -r backend/requirements.txt` with dependency caching.
+- Frontend uses clean `npm ci` referencing `frontend/package-lock.json` with dependency caching, preventing lockfile drifts or unintended package updates.
+
+### Security & Environment Isolation
+- **Least Privilege Permissions**: CI runs with minimal permissions (`permissions: contents: read`).
+- **Zero Secrets Required**: CI requires zero production secrets, API keys, or database URLs in GitHub repository secrets.
+- **No Leakage via Logs or Artifacts**: CI never outputs or references `.env` files and creates no external build artifact uploads.
+- **Strict File Isolation**: Both root `.gitignore` and `frontend/.gitignore` exclude `.env`, `.env.local`, and sensitive certificate/key patterns.
+- **Uncompromised Production Guardrails**: CI runs under test mode without weakening or bypassing `validate_production_config()` checks.
+
+### Developer Troubleshooting
+When CI reports a failure:
+1. **Backend Test Failures**:
+   - Reproduce locally: `backend/.venv/bin/pytest backend/tests/ -v`
+   - Inspect specific failing test line and assertion output in CI step logs.
+   - Verify that all environment variables use safe test defaults in `Settings`.
+2. **Frontend Build Failures**:
+   - Reproduce locally: `cd frontend && npm ci && npm run build`
+   - Inspect Next.js build logs for TypeScript type errors or syntax mistakes.
+   - Ensure all public client-side environment variables have the `NEXT_PUBLIC_` prefix.
 

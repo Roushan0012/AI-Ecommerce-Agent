@@ -9,6 +9,17 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   backend-tests:
     name: Backend Test Suite
@@ -36,6 +47,8 @@ jobs:
           ENVIRONMENT: test
           DATABASE_URL: sqlite:///./ci_test.db
           AI_PROVIDER: mock
+          PYTHONUNBUFFERED: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
         run: |
           pytest -v
 
@@ -61,5 +74,7 @@ jobs:
       - name: Run frontend production build
         working-directory: frontend
         env:
+          CI: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
           NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
         run: npm run build
