@@ -130,6 +130,34 @@ export interface AgentGrowthResponse {
   page_size: number;
 }
 
+export interface CartItem {
+  id: string;
+  cart_id: string;
+  product_id: string;
+  product_name: string;
+  sku: string;
+  category?: string | null;
+  quantity: number;
+  unit_price: string | number;
+  total_price: string | number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CartResponse {
+  id: string;
+  customer_id: string;
+  status: string;
+  currency: string;
+  items: CartItem[];
+  item_count: number;
+  subtotal: string | number;
+  discount: string | number;
+  total: string | number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaymentOrderResponse {
   payment_id: string;
   order_id: string;
@@ -328,6 +356,27 @@ export async function fetchProducts(
 
   const data: ProductListResponse = await response.json();
   return data;
+}
+
+export async function fetchProductById(productId: string): Promise<ProductItem> {
+  const response = await fetch(`${API_BASE_URL}/api/products/${productId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `Product fetch failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return response.json();
 }
 
 // -----------------------------------------------------------------------------
@@ -582,6 +631,57 @@ export async function fetchDashboardActivity(
       throw new Error("Access forbidden. Merchant or admin role is required.");
     }
     throw new Error(`Failed to load dashboard activity (status ${response.status})`);
+  }
+
+  return response.json();
+}
+
+// -----------------------------------------------------------------------------
+// Cart Endpoints
+// -----------------------------------------------------------------------------
+
+export async function addToCart(
+  customerId: string,
+  productId: string,
+  quantity: number = 1
+): Promise<CartResponse> {
+  if (quantity < 1) {
+    throw new Error("Quantity must be at least 1.");
+  }
+
+  const response = await authFetch(`${API_BASE_URL}/api/cart/${customerId}/items`, {
+    method: "POST",
+    body: JSON.stringify({
+      product_id: productId,
+      quantity,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `Failed to add item to cart (status ${response.status})`;
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function fetchCart(customerId: string): Promise<CartResponse> {
+  const response = await authFetch(`${API_BASE_URL}/api/cart/${customerId}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `Failed to load cart (status ${response.status})`;
+    throw new Error(message);
   }
 
   return response.json();

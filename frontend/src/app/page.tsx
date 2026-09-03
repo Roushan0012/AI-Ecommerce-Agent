@@ -5,10 +5,14 @@ import Link from "next/link";
 import {
   API_BASE_URL,
   AgentSearchResponse,
+  CartResponse,
   HealthResponse,
   ProductItem,
+  addToCart,
+  fetchCart,
   fetchCurrentUser,
   fetchHealth,
+  fetchProductById,
   fetchProducts,
   loginUser,
   logoutUser,
@@ -52,10 +56,18 @@ function formatCurrency(amount: string | number): string {
 interface ProductCardProps {
   product: ProductItem;
   onAddToCart: (product: ProductItem) => void;
+  onOpenDetails: (productId: string) => void;
+  isAdding?: boolean;
   isAiMatch?: boolean;
 }
 
-function ProductCard({ product, onAddToCart, isAiMatch }: ProductCardProps) {
+function ProductCard({
+  product,
+  onAddToCart,
+  onOpenDetails,
+  isAdding,
+  isAiMatch,
+}: ProductCardProps) {
   const inStock = product.inventory > 0;
 
   return (
@@ -91,11 +103,16 @@ function ProductCard({ product, onAddToCart, isAiMatch }: ProductCardProps) {
           </div>
         </div>
 
-        {/* Product Name & SKU */}
+        {/* Product Name (Clickable to open Product Details) & SKU */}
         <div>
-          <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2">
+          <button
+            type="button"
+            onClick={() => onOpenDetails(product.id)}
+            className="text-left text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 cursor-pointer w-full"
+            aria-label={`View details for ${product.name}`}
+          >
             {product.name}
-          </h3>
+          </button>
           <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
             SKU: {product.sku}
           </p>
@@ -108,28 +125,55 @@ function ProductCard({ product, onAddToCart, isAiMatch }: ProductCardProps) {
       </div>
 
       {/* Price & Action Button Footer */}
-      <div className="mt-5 pt-4 border-t border-zinc-800/80 flex items-center justify-between gap-3">
-        <div>
-          <span className="text-[10px] uppercase font-semibold text-zinc-500 block">
-            Price
-          </span>
-          <span className="text-base font-extrabold text-white tracking-tight">
-            {formatCurrency(product.price)}
+      <div className="mt-5 pt-4 border-t border-zinc-800/80 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-semibold text-zinc-500 block">
+              Price
+            </span>
+            <span className="text-base font-extrabold text-white tracking-tight">
+              {formatCurrency(product.price)}
+            </span>
+          </div>
+
+          <span className="text-[11px] font-mono text-zinc-400">
+            {inStock ? `${product.inventory} available` : "Unavailable"}
           </span>
         </div>
 
-        <button
-          onClick={() => onAddToCart(product)}
-          disabled={!inStock}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold shadow-sm transition-all cursor-pointer ${
-            inStock
-              ? "bg-indigo-600 text-white shadow-indigo-600/20 hover:bg-indigo-500 hover:scale-102 active:scale-98"
-              : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-          }`}
-        >
-          <span>🛒</span>
-          <span>{inStock ? "Add to Cart" : "Sold Out"}</span>
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="view-details-btn"
+            onClick={() => onOpenDetails(product.id)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800/90 py-2.5 px-3 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white hover:border-zinc-500 transition cursor-pointer shadow-sm"
+            aria-label={`View details for ${product.name}`}
+          >
+            <span>👁️</span>
+            <span>View Details</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="add-to-cart-btn"
+            onClick={() => onAddToCart(product)}
+            disabled={!inStock || isAdding}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-3 text-xs font-semibold shadow-sm transition-all cursor-pointer ${
+              inStock
+                ? "bg-indigo-600 text-white shadow-indigo-600/20 hover:bg-indigo-500 hover:scale-101 active:scale-99 disabled:opacity-50"
+                : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+            }`}
+          >
+            <span>{isAdding ? "⏳" : "🛒"}</span>
+            <span>
+              {isAdding
+                ? "Adding..."
+                : inStock
+                ? "Add to Cart"
+                : "Sold Out"}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -144,6 +188,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authPromptReason, setAuthPromptReason] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState<string>("");
   const [passwordInput, setPasswordInput] = useState<string>("");
   const [authLoading, setAuthLoading] = useState<boolean>(false);
@@ -168,8 +213,82 @@ export default function Home() {
   const [aiValidationError, setAiValidationError] = useState<string | null>(null);
   const [aiResponse, setAiResponse] = useState<AgentSearchResponse | null>(null);
 
-  // Toast feedback
+  // Step 3A: Cart mutation state
+  const [activeCart, setActiveCart] = useState<CartResponse | null>(null);
+  const [cartItemCount, setCartItemCount] = useState<number>(0);
+  const [addingProductId, setAddingProductId] = useState<string | null>(null);
+
+  // Product Detail Modal state
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
+  const [detailProductId, setDetailProductId] = useState<string | null>(null);
+  const [detailProduct, setDetailProduct] = useState<ProductItem | null>(null);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<"success" | "error" | "info">("info");
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  // Close Product Details modal with Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isDetailModalOpen) {
+        handleCloseProductDetail();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDetailModalOpen]);
+
+  // Open Product Detail modal and fetch authoritative product details
+  const handleOpenProductDetail = async (productId: string) => {
+    setIsDetailModalOpen(true);
+    setDetailProductId(productId);
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetailProduct(null);
+
+    try {
+      const data = await fetchProductById(productId);
+      setDetailProduct(data);
+    } catch (err: unknown) {
+      setDetailError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load product details from server."
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  // Close Product Detail modal
+  const handleCloseProductDetail = () => {
+    setIsDetailModalOpen(false);
+    setDetailProductId(null);
+    setDetailProduct(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  };
+
+  // Synchronize authenticated customer cart
+  const syncCart = useCallback(async (customerId: string) => {
+    try {
+      const cart = await fetchCart(customerId);
+      setActiveCart(cart);
+      setCartItemCount(cart.item_count || 0);
+    } catch {
+      // Cart will be auto-created on first item add
+    }
+  }, []);
 
   // Load catalog from backend
   const loadCatalog = useCallback(
@@ -201,7 +320,7 @@ export default function Home() {
     [pageSize]
   );
 
-  // Initialize session & catalog
+  // Initialize session, health & catalog
   useEffect(() => {
     let ignore = false;
 
@@ -216,7 +335,12 @@ export default function Home() {
       }
 
       const user = await fetchCurrentUser();
-      if (!ignore) setCurrentUser(user);
+      if (!ignore) {
+        setCurrentUser(user);
+        if (user) {
+          syncCart(user.id);
+        }
+      }
 
       if (!ignore) {
         await loadCatalog("", "All", 1);
@@ -228,6 +352,12 @@ export default function Home() {
     const unsubscribe = subscribeAuth((state) => {
       if (!ignore) {
         setCurrentUser(state.user);
+        if (state.user) {
+          syncCart(state.user.id);
+        } else {
+          setActiveCart(null);
+          setCartItemCount(0);
+        }
       }
     });
 
@@ -235,7 +365,7 @@ export default function Home() {
       ignore = true;
       unsubscribe();
     };
-  }, [loadCatalog]);
+  }, [loadCatalog, syncCart]);
 
   // Direct catalog search handler
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -302,6 +432,43 @@ export default function Home() {
     setAiValidationError(null);
   };
 
+  // Step 3A: Real authenticated Add to Cart mutation (Reused in card and detail modal)
+  const handleAddToCart = async (product: ProductItem) => {
+    // 1. Client-side stock check
+    if (product.inventory <= 0) {
+      showToast(`"${product.name}" is currently out of stock.`, "error");
+      return;
+    }
+
+    // 2. Unauthenticated check -> Direct to Sign In
+    if (!currentUser) {
+      setAuthPromptReason("Please sign in or create an account to add items to your cart.");
+      setShowAuthModal(true);
+      return;
+    }
+
+    // 3. Authenticated cart mutation
+    setAddingProductId(product.id);
+
+    try {
+      const updatedCart = await addToCart(currentUser.id, product.id, 1);
+      setActiveCart(updatedCart);
+      setCartItemCount(updatedCart.item_count);
+      showToast(
+        `Added "${product.name}" to cart! (Cart total: ${formatCurrency(updatedCart.total)})`,
+        "success"
+      );
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Failed to add item to cart. Please try again.";
+      showToast(`Cart Error: ${errorMsg}`, "error");
+    } finally {
+      setAddingProductId(null);
+    }
+  };
+
   // Pagination handlers
   const totalPages = Math.ceil(totalProducts / pageSize) || 1;
 
@@ -334,16 +501,24 @@ export default function Home() {
       if (authMode === "login") {
         const { user } = await loginUser(emailInput, passwordInput);
         setCurrentUser(user);
+        syncCart(user.id);
         setAuthSuccess(`Welcome back, ${user.email}!`);
         setPasswordInput("");
-        setTimeout(() => setShowAuthModal(false), 800);
+        setTimeout(() => {
+          setShowAuthModal(false);
+          setAuthPromptReason(null);
+        }, 800);
       } else {
         await registerUser(emailInput, passwordInput);
         setAuthSuccess("Account registered! Logging in...");
         const { user } = await loginUser(emailInput, passwordInput);
         setCurrentUser(user);
+        syncCart(user.id);
         setPasswordInput("");
-        setTimeout(() => setShowAuthModal(false), 800);
+        setTimeout(() => {
+          setShowAuthModal(false);
+          setAuthPromptReason(null);
+        }, 800);
       }
     } catch (err: unknown) {
       setAuthError(
@@ -357,7 +532,16 @@ export default function Home() {
   const handleLogout = () => {
     logoutUser();
     setCurrentUser(null);
+    setActiveCart(null);
+    setCartItemCount(0);
     setAuthSuccess(null);
+    setAuthError(null);
+  };
+
+  const fillDemoCustomer = () => {
+    setEmailInput("testcustomer@example.com");
+    setPasswordInput("CustomerPassword123!");
+    setAuthMode("login");
     setAuthError(null);
   };
 
@@ -368,20 +552,20 @@ export default function Home() {
     setAuthError(null);
   };
 
-  // Add to cart placeholder feedback
-  const handleAddToCart = (product: ProductItem) => {
-    setToastMessage(`"${product.name}" added to selection (Cart checkout integration in next step)`);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3200);
-  };
-
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 selection:bg-indigo-500 selection:text-white">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl border border-indigo-500/40 bg-zinc-900/95 px-4 py-3 text-xs font-medium text-indigo-300 shadow-2xl backdrop-blur-md animate-fade-in">
-          <span>🛒</span>
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-medium shadow-2xl backdrop-blur-md animate-fade-in ${
+            toastType === "success"
+              ? "border-emerald-500/40 bg-zinc-900/95 text-emerald-300"
+              : toastType === "error"
+              ? "border-rose-500/40 bg-zinc-900/95 text-rose-300"
+              : "border-indigo-500/40 bg-zinc-900/95 text-indigo-300"
+          }`}
+        >
+          <span>{toastType === "success" ? "✅" : toastType === "error" ? "⚠️" : "🛒"}</span>
           <span>{toastMessage}</span>
         </div>
       )}
@@ -422,6 +606,21 @@ export default function Home() {
               </span>
             </div>
 
+            {/* Authenticated Cart Status Pill */}
+            {currentUser && cartItemCount > 0 && (
+              <div className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-950/50 px-3 py-1.5 text-xs font-semibold text-indigo-300 shadow-sm">
+                <span>🛒</span>
+                <span>
+                  {cartItemCount} item{cartItemCount > 1 ? "s" : ""}
+                </span>
+                {activeCart && (
+                  <span className="font-mono text-white text-[11px]">
+                    ({formatCurrency(activeCart.total)})
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Merchant Dashboard Link */}
             <Link
               href="/dashboard"
@@ -442,6 +641,7 @@ export default function Home() {
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={handleLogout}
                   className="rounded-lg border border-rose-900/40 bg-rose-950/30 px-2.5 py-1.5 text-xs font-medium text-rose-300 hover:bg-rose-900/50 transition cursor-pointer"
                 >
@@ -450,7 +650,9 @@ export default function Home() {
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => {
+                  setAuthPromptReason(null);
                   setShowAuthModal(true);
                   setAuthError(null);
                   setAuthSuccess(null);
@@ -504,6 +706,7 @@ export default function Home() {
 
             {aiResponse && (
               <button
+                type="button"
                 onClick={handleClearAiSearch}
                 className="self-start sm:self-center text-xs font-semibold text-purple-400 hover:text-purple-300 transition cursor-pointer border border-purple-800/60 rounded-lg px-3 py-1.5 bg-purple-950/30"
               >
@@ -521,7 +724,10 @@ export default function Home() {
             className="space-y-3"
           >
             <div>
-              <label htmlFor="ai-natural-language-input" className="block text-xs font-semibold text-purple-300 mb-1.5">
+              <label
+                htmlFor="ai-natural-language-input"
+                className="block text-xs font-semibold text-purple-300 mb-1.5"
+              >
                 Natural-Language Shopping Query:
               </label>
               <div className="flex flex-col sm:flex-row gap-2.5">
@@ -667,7 +873,9 @@ export default function Home() {
                 <div className="space-y-3">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2">
                     <span>✨</span>
-                    <span>AI Recommendations / AI Search Results ({aiResponse.items.length})</span>
+                    <span>
+                      AI Recommendations / AI Search Results ({aiResponse.items.length})
+                    </span>
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {aiResponse.items.map((product) => (
@@ -675,6 +883,8 @@ export default function Home() {
                         key={`ai-${product.id}`}
                         product={product}
                         onAddToCart={handleAddToCart}
+                        onOpenDetails={handleOpenProductDetail}
+                        isAdding={addingProductId === product.id}
                         isAiMatch
                       />
                     ))}
@@ -761,6 +971,7 @@ export default function Home() {
                   return (
                     <button
                       key={category}
+                      type="button"
                       onClick={() => handleCategorySelect(category)}
                       className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                         isSelected
@@ -783,6 +994,7 @@ export default function Home() {
                 </span>
                 {(activeSearch || selectedCategory !== "All") && (
                   <button
+                    type="button"
                     onClick={handleClearFilters}
                     className="text-xs font-semibold text-indigo-400 hover:underline cursor-pointer"
                   >
@@ -804,6 +1016,7 @@ export default function Home() {
                 {productError}
               </p>
               <button
+                type="button"
                 onClick={() => loadCatalog(activeSearch, selectedCategory, page)}
                 className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-500 transition cursor-pointer"
               >
@@ -845,6 +1058,7 @@ export default function Home() {
                   : `There are currently no active products in category "${selectedCategory}".`}
               </p>
               <button
+                type="button"
                 onClick={handleClearFilters}
                 className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
               >
@@ -861,6 +1075,8 @@ export default function Home() {
                   key={product.id}
                   product={product}
                   onAddToCart={handleAddToCart}
+                  onOpenDetails={handleOpenProductDetail}
+                  isAdding={addingProductId === product.id}
                 />
               ))}
             </div>
@@ -870,6 +1086,7 @@ export default function Home() {
           {!loadingProducts && !productError && totalPages > 1 && (
             <div className="flex items-center justify-center gap-4 pt-6 border-t border-zinc-800/60">
               <button
+                type="button"
                 onClick={handlePrevPage}
                 disabled={page <= 1}
                 className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
@@ -881,6 +1098,7 @@ export default function Home() {
                 <strong className="text-white">{totalPages}</strong>
               </span>
               <button
+                type="button"
                 onClick={handleNextPage}
                 disabled={page >= totalPages}
                 className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
@@ -891,6 +1109,200 @@ export default function Home() {
           )}
         </section>
       </main>
+
+      {/* Product Detail Modal (Authoritative Backend Data) */}
+      {isDetailModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleCloseProductDetail();
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-detail-title"
+        >
+          <div className="relative w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900/95 p-6 sm:p-8 shadow-2xl shadow-purple-950/20 space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-950/40 px-3 py-0.5 text-xs font-semibold text-purple-300">
+                  <span>✨</span>
+                  <span>Product Details</span>
+                </span>
+                {detailProduct && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-300">
+                    <span>{CATEGORY_ICONS[detailProduct.category || ""] || "🏷️"}</span>
+                    <span>{detailProduct.category || "General"}</span>
+                  </span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseProductDetail}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white text-base font-bold transition cursor-pointer"
+                aria-label="Close product details modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content: Loading State */}
+            {detailLoading && (
+              <div className="py-16 text-center space-y-3">
+                <div className="text-3xl animate-spin inline-block">⏳</div>
+                <h4 className="text-sm font-bold text-zinc-200">
+                  Loading authoritative product details...
+                </h4>
+                <p className="text-xs font-mono text-zinc-500">
+                  GET /api/products/{detailProductId}
+                </p>
+              </div>
+            )}
+
+            {/* Modal Content: Error State */}
+            {detailError && !detailLoading && (
+              <div className="rounded-xl border border-rose-900/50 bg-rose-950/30 p-6 text-center space-y-3">
+                <div className="text-2xl">⚠️</div>
+                <h4 className="text-sm font-bold text-rose-300">
+                  Failed to load product details
+                </h4>
+                <p className="text-xs text-rose-400">{detailError}</p>
+                <div className="pt-2 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => detailProductId && handleOpenProductDetail(detailProductId)}
+                    className="rounded-lg bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-500 transition cursor-pointer"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseProductDetail}
+                    className="rounded-lg border border-zinc-700 bg-zinc-800 px-3.5 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Content: Authoritative Product Details */}
+            {detailProduct && !detailLoading && (
+              <div className="space-y-6">
+                {/* Title & SKU */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2
+                      id="product-detail-title"
+                      className="text-xl sm:text-2xl font-bold text-white tracking-tight"
+                    >
+                      {detailProduct.name}
+                    </h2>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${
+                        detailProduct.inventory > 0
+                          ? "bg-emerald-950/60 text-emerald-400 border border-emerald-900/50"
+                          : "bg-rose-950/60 text-rose-400 border border-rose-900/50"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          detailProduct.inventory > 0 ? "bg-emerald-400" : "bg-rose-400"
+                        }`}
+                      />
+                      <span>
+                        {detailProduct.inventory > 0
+                          ? `${detailProduct.inventory} in stock`
+                          : "Out of stock"}
+                      </span>
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-zinc-400">
+                    SKU: <strong className="text-zinc-200">{detailProduct.sku}</strong>
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    Description
+                  </h4>
+                  <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-line">
+                    {detailProduct.description || "No description provided."}
+                  </p>
+                </div>
+
+                {/* Attributes / Specifications */}
+                {detailProduct.attributes &&
+                  Object.keys(detailProduct.attributes).length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-zinc-800/80">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                        Specifications & Attributes
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {Object.entries(detailProduct.attributes).map(([key, val]) => (
+                          <div
+                            key={key}
+                            className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2.5 text-xs space-y-0.5"
+                          >
+                            <span className="text-[10px] uppercase font-semibold text-zinc-500 block truncate">
+                              {key.replace(/_/g, " ")}
+                            </span>
+                            <span className="font-medium text-zinc-200 block truncate">
+                              {String(val)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Price, Stock & Action Footer */}
+                <div className="pt-4 border-t border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-zinc-500 block">
+                      Authoritative Price (INR)
+                    </span>
+                    <span className="text-2xl font-black text-white tracking-tight">
+                      {formatCurrency(detailProduct.price)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleAddToCart(detailProduct)}
+                      disabled={detailProduct.inventory <= 0 || addingProductId === detailProduct.id}
+                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-xs font-semibold shadow-md transition-all cursor-pointer ${
+                        detailProduct.inventory > 0
+                          ? "bg-indigo-600 text-white shadow-indigo-600/30 hover:bg-indigo-500 disabled:opacity-50"
+                          : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                      }`}
+                    >
+                      <span>{addingProductId === detailProduct.id ? "⏳" : "🛒"}</span>
+                      <span>
+                        {addingProductId === detailProduct.id
+                          ? "Adding..."
+                          : detailProduct.inventory > 0
+                          ? "Add to Cart"
+                          : "Sold Out"}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCloseProductDetail}
+                      className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Customer / Merchant Authentication Modal */}
       {showAuthModal && (
@@ -929,12 +1341,22 @@ export default function Home() {
               </div>
 
               <button
-                onClick={() => setShowAuthModal(false)}
+                type="button"
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setAuthPromptReason(null);
+                }}
                 className="text-zinc-500 hover:text-zinc-300 text-sm font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
+
+            {authPromptReason && (
+              <div className="rounded-xl border border-indigo-500/40 bg-indigo-950/40 p-3 text-xs font-medium text-indigo-300">
+                {authPromptReason}
+              </div>
+            )}
 
             <form onSubmit={handleAuthSubmit} className="space-y-3.5 pt-2">
               <div>
@@ -988,6 +1410,13 @@ export default function Home() {
                     : authMode === "login"
                     ? "Sign In with JWT"
                     : "Create Customer Account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={fillDemoCustomer}
+                  className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                >
+                  Demo Customer
                 </button>
                 <button
                   type="button"
