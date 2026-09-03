@@ -53,6 +53,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 18D** | Frontend Production Configuration | **Complete** |
 | **Phase 18E** | CI/CD Pipeline Validation & Testing | **Complete** |
 | **Phase 18F-1** | Deployment Architecture & Configuration Foundation | **Complete** |
+| **Phase 18F-2** | Backend Deployment Readiness | **Complete** |
 
 ---
 
@@ -104,6 +105,9 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 # Production Deployment Startup:
 uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 4 --proxy-headers --forwarded-allow-ips "*"
+
+# Production Backend Docker Build:
+docker build -t ai-commerce-backend backend/
 ```
 
 ### Frontend Setup
@@ -124,7 +128,7 @@ npm run start
 # Frontend Tests (9 automated unit/contract tests)
 cd frontend && npm test
 
-# Backend Tests (367 tests across all phases)
+# Backend Tests (373 tests across all phases)
 backend/.venv/bin/pytest backend/tests/ -v
 
 # Postman / Newman (35 live endpoint tests / 108 assertions)

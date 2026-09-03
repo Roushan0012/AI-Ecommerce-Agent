@@ -318,10 +318,61 @@ Phase 18F-1 establishes the deployment configuration foundation across the appli
   - `HOST` and `PORT`: Local default `127.0.0.1:8000`, production default `0.0.0.0:8000`.
 - **Verdict**: Zero hardcoded production blockers exist. All local defaults function correctly in development while enabling complete environment configuration in production.
 
-### 6. Intentionally Deferred to Later Phase 18F Steps
-- **Containerization / Dockerfiles**: Deferred to containerization step (Phase 18F-2).
-- **Process Management & Orchestration**: Deferred to deployment configuration step (Phase 18F-3).
+### 6. Phase 18F Roadmap Progression
+- **Backend Containerization & Readiness (Phase 18F-2)**: Implemented below.
+- **Frontend & Full-Stack Deployment Preparation (Phase 18F-3)**: Multi-container orchestration, frontend containerization, deployment scripts.
 - **Actual Cloud Infrastructure Provisioning**: Deferred to deployment execution step.
+
+---
+
+## 11. Backend Deployment Readiness (Phase 18F-2)
+
+Phase 18F-2 hardens the FastAPI backend runtime for containerized and virtualized deployments while preserving all core business logic and API contracts:
+
+### 1. Production Startup Readiness
+- **ASGI Process Engine**: Uvicorn with standard asyncio loop (`uvloop`), HTTP/1.1 parsing (`httptools`), and proxy headers (`--proxy-headers --forwarded-allow-ips "*"`).
+- **Process Entry Point**: `app.main:app` (zero modifications required to application structure).
+- **Multi-Worker Concurrency**: Driven by `${WEB_CONCURRENCY:-4}` to achieve multi-core throughput in production containers/VMs.
+- **Dynamic Port & Host Binding**: Driven by `${HOST:-0.0.0.0}` and `${PORT:-8000}`.
+- **Disabling Development Reload**: `--reload` is strictly omitted from production commands, preventing filesystem watcher overhead and process instability.
+
+### 2. Database Readiness & Prevention of SQLite Fallback
+- **Strict PostgreSQL / Supabase Requirement**: In production (`ENVIRONMENT=production`), the application strictly connects to PostgreSQL/Supabase via `DATABASE_URL`.
+- **No Accidental SQLite Fallback**: While local development may fall back to `commerce.db` when working offline, `database.get_engine()` strictly blocks SQLite fallback in production. If the primary database connection fails, the PostgreSQL engine is preserved and an error is logged.
+- **Sanitized Logging**: Database error messages and connection strings are scrubbed with `redact_sensitive_text()` before logging, preventing credential leaks in application log streams.
+- **Connection Pooling & Pre-Ping**: Database engines use `pool_pre_ping=True` and `pool_recycle=300` to automatically recover from stale or dropped server connections.
+- **Deterministic Migrations**: Database schema remains versioned and deterministic under `docs/database/001_initial_schema.sql` and `docs/database/002_seed_products.sql`.
+
+### 3. Health & Readiness Endpoints
+The platform exposes separated liveness and readiness endpoints for cloud orchestrators (Docker, Kubernetes, AWS ECS, Render, Railway):
+
+| Endpoint | Probe Type | Purpose | Healthy Response | Unhealthy Response |
+|---|---|---|---|---|
+| `GET /api/health` | **Liveness** | Verifies ASGI web process is running and accepting HTTP connections. | `200 OK`<br>`{"status":"ok","service":"ai-commerce-agent-api"}` | Connection refused / Timeout |
+| `GET /api/health/database` | **Readiness** | Verifies database pool can execute `SELECT 1`. Traffic should only route to instances returning 200. | `200 OK`<br>`{"status":"ok","database":"connected"}` | `503 Service Unavailable`<br>`{"status":"error","database":"disconnected","message":"..."}` |
+
+- **Zero Secret Exposure**: Neither probe leaks database URLs, usernames, passwords, or stack traces.
+
+### 4. Containerization (Backend Dockerfile)
+- **File**: [`backend/Dockerfile`](file:///Users/roushan_iiitbgp/Desktop/AI_Agent_Ecommerce_Platform/backend/Dockerfile)
+- **Base Image**: Official `python:3.12-slim` minimizing attack surface and image size.
+- **Least Privilege**: Application runs under dedicated non-root user `appuser` (UID 1001).
+- **Integrated Health Check**: Container includes built-in `HEALTHCHECK` probing `http://localhost:8000/api/health`.
+- **Dockerignore**: Excludes `.env`, `.venv`, `*.db`, `__pycache__`, and tests from image layers.
+
+### 5. Failure Behavior Matrix
+| Failure Scenario | Runtime Behavior | Status Code | Error Masking |
+|---|---|---|---|
+| Database Connection Drops | Liveness stays 200, Readiness returns 503 | 503 | Masked generic error; no credentials leaked |
+| Insecure/Missing Prod Secrets | Lifespan validation raises `ConfigurationError` | Fails Startup | Lists missing variable names only; zero secret leakage |
+| Wildcard CORS in Prod | Lifespan validation raises `ConfigurationError` | Fails Startup | Clear guidance on requiring explicit domains |
+| Brute Force / Excessive Requests | `RateLimitMiddleware` rejects client | 429 | Standard `Rate limit exceeded` header & JSON |
+| Unhandled Server Exception | `unhandled_exception_handler` redacts trace | 500 | Production receives generic `Internal Server Error` |
+
+### 6. Intentionally Deferred to Phase 18F-3
+- **Frontend Containerization & Production Build Image**: Deferred to 18F-3.
+- **Multi-Container Composition (`docker-compose.prod.yml`)**: Deferred to 18F-3.
+- **Cloud Infrastructure & CI/CD Deployment Workflows**: Deferred to final deployment phases.
 
 
 

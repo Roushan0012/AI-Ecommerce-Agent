@@ -3,6 +3,7 @@ from typing import Generator
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker, Session
 from app.core.config import settings
+from app.core.logging_security import redact_sensitive_text
 
 logger = logging.getLogger(__name__)
 
@@ -37,23 +38,30 @@ def get_engine():
                 conn.execute(text("SELECT 1"))
             _engine = engine_candidate
         except Exception as exc:
-            logger.warning(
-                f"Primary database connection unavailable ({exc}). Using local SQLite fallback database."
-            )
-            local_engine = create_engine(
-                "sqlite:///./commerce.db",
-                connect_args={"check_same_thread": False},
-            )
-            # Ensure tables and seed exist
-            import app.models  # noqa
-            Base.metadata.create_all(local_engine)
-            try:
-                from app.core.seed import seed_catalog
-                with Session(local_engine) as session:
-                    seed_catalog(session)
-            except Exception as seed_err:
-                logger.warning(f"Local seed warning: {seed_err}")
-            _engine = local_engine
+            sanitized_exc = redact_sensitive_text(str(exc))
+            if settings.is_production:
+                logger.error(
+                    f"Production primary database connection failed ({sanitized_exc}). SQLite fallback is disabled in production."
+                )
+                _engine = engine_candidate
+            else:
+                logger.warning(
+                    f"Primary database connection unavailable ({sanitized_exc}). Using local SQLite fallback database."
+                )
+                local_engine = create_engine(
+                    "sqlite:///./commerce.db",
+                    connect_args={"check_same_thread": False},
+                )
+                # Ensure tables and seed exist
+                import app.models  # noqa
+                Base.metadata.create_all(local_engine)
+                try:
+                    from app.core.seed import seed_catalog
+                    with Session(local_engine) as session:
+                        seed_catalog(session)
+                except Exception as seed_err:
+                    logger.warning(f"Local seed warning: {seed_err}")
+                _engine = local_engine
 
     return _engine
 
