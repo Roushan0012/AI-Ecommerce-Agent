@@ -137,3 +137,39 @@ When CI reports a failure:
    - Inspect Next.js build logs for TypeScript type errors or syntax mistakes.
    - Ensure all public client-side environment variables have the `NEXT_PUBLIC_` prefix.
 
+---
+
+## 7. API & Application Hardening (Phase 18C)
+
+Phase 18C reinforces the production security posture through multi-layer application defenses:
+
+### 1. In-Memory Rate Limiting
+- **Architecture**: Thread-safe sliding-window limiter without external infrastructure dependencies.
+- **Tiers & Defaults**:
+  - **Auth Tier** (`/api/auth/login`, `/api/auth/register`):
+    `RATE_LIMIT_AUTH_PER_MINUTE=10` (Production) / `30` (Development) / `1000` (Test).
+  - **Default Tier** (`/api/*`):
+    `RATE_LIMIT_DEFAULT_PER_MINUTE=120` (Production) / `300` (Development) / `10000` (Test).
+  - **Master Switch**: `RATE_LIMIT_ENABLED=true` (can be toggled via environment).
+- **Enforcement**: Excessive requests immediately return `429 Too Many Requests` with a `Retry-After: <seconds>` response header. System health endpoints (`/api/health`, `/api/health/database`) and OpenAPI docs are whitelisted from rate limiting.
+
+### 2. Request Body Size & Input Protections
+- **Payload Size Limiting**: `MAX_REQUEST_BODY_BYTES=2097152` (2 MB default, configurable). Requests exceeding this limit receive an immediate `413 Payload Too Large` rejection before extensive memory allocation or streaming occurs.
+- **Input Field Boundaries**: Credentials and prompts enforce strict length limits (e.g. login passwords max 128 characters, search prompts max 1000 characters) to prevent CPU exhaustion on hash verification or LLM calls.
+
+### 3. Defensive HTTP Security Headers
+All responses automatically receive standard defensive security headers:
+- `X-Content-Type-Options: nosniff` (MIME-sniffing protection)
+- `X-Frame-Options: DENY` (Clickjacking / frame embedding protection)
+- `X-XSS-Protection: 1; mode=block` (Legacy reflected XSS protection)
+- `Referrer-Policy: strict-origin-when-cross-origin` (Information disclosure control)
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()` (Restricts unauthorized device APIs)
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` (Enforced automatically in production mode)
+
+### 4. Error Handling & Information Disclosure Safeguards
+- **Validation Error Sanitization**: When a 422 Unprocessable Content error occurs, submitted values for sensitive fields (`password`, `secret`, `token`, `key`) are masked with `[REDACTED]` so passwords and credentials are never reflected back in API responses.
+- **Production 500 Error Masking**: Unhandled server exceptions in production return a generic sanitized response without stack traces, database strings, or internal paths.
+
+### 5. Production Logging & Secret Redaction
+- **Global Logging Filter**: `SensitiveDataRedactionFilter` automatically sanitizes all log output across root, uvicorn, and application loggers.
+- **Patterns Redacted**: Passwords, JWT access tokens, Bearer authorization headers, X-Agent-Key headers, Razorpay keys/signatures, Groq/OpenAI API keys, and PostgreSQL database URLs containing passwords.

@@ -177,6 +177,47 @@ class Settings:
         except ValueError:
             return 60
 
+    # Phase 18C - Rate Limiting & Request Hardening Configuration
+    @property
+    def RATE_LIMIT_ENABLED(self) -> bool:
+        val = os.getenv("RATE_LIMIT_ENABLED", "true").lower().strip()
+        return val in ("true", "1", "yes", "t")
+
+    @property
+    def RATE_LIMIT_AUTH_PER_MINUTE(self) -> int:
+        raw = os.getenv("RATE_LIMIT_AUTH_PER_MINUTE")
+        if raw:
+            try:
+                return max(1, int(raw))
+            except ValueError:
+                pass
+        return 1000 if self.is_test else (10 if self.is_production else 30)
+
+    @property
+    def RATE_LIMIT_DEFAULT_PER_MINUTE(self) -> int:
+        raw = os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE")
+        if raw:
+            try:
+                return max(1, int(raw))
+            except ValueError:
+                pass
+        return 10000 if self.is_test else (120 if self.is_production else 300)
+
+    @property
+    def MAX_REQUEST_BODY_BYTES(self) -> int:
+        raw = os.getenv("MAX_REQUEST_BODY_BYTES")
+        if raw:
+            try:
+                return max(1, int(raw))
+            except ValueError:
+                pass
+        return 2 * 1024 * 1024  # 2MB default
+
+    @property
+    def SECURITY_HEADERS_ENABLED(self) -> bool:
+        val = os.getenv("SECURITY_HEADERS_ENABLED", "true").lower().strip()
+        return val in ("true", "1", "yes", "t")
+
     # Production Configuration Validation
     def validate_production_config(self) -> None:
         """

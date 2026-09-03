@@ -34,8 +34,8 @@ class UserRegisterRequest(BaseModel):
 
 class UserLoginRequest(BaseModel):
     """Schema for user login request."""
-    email: str = Field(..., description="User email address")
-    password: str = Field(..., description="User password")
+    email: str = Field(..., description="User email address", max_length=255)
+    password: str = Field(..., description="User password", max_length=128)
 
     @field_validator("email")
     @classmethod

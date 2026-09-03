@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -19,12 +20,20 @@ from app.api.payments import router as payments_router
 from app.api.products import router as products_router
 from app.core.config import settings, ConfigurationError
 from app.core.database import check_database_connection
+from app.core.logging_security import setup_security_logging, redact_sensitive_text
+from app.core.security_middleware import (
+    SecurityHeadersMiddleware,
+    RequestSizeLimitMiddleware,
+    RateLimitMiddleware,
+)
 
 logger = logging.getLogger("app.main")
+setup_security_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_security_logging()
     if settings.is_production:
         settings.validate_production_config()
     yield
@@ -41,6 +50,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 1. Security Headers (applies to all HTTP responses)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. CORS (Cross-Origin Resource Sharing)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.validate_cors_origins(),
@@ -48,6 +61,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 3. Request Size Limiting (blocks oversized request bodies)
+app.add_middleware(RequestSizeLimitMiddleware)
+
+# 4. Rate Limiting (blocks brute-force and request flooding)
+app.add_middleware(RateLimitMiddleware)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -61,12 +80,39 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return await request_validation_exception_handler(request, exc)
+    # Delegate to FastAPI's built-in encoder, then redact sensitive fields (passwords, tokens, keys)
+    res = await request_validation_exception_handler(request, exc)
+    try:
+        data = json.loads(res.body.decode("utf-8"))
+        if isinstance(data, dict) and "detail" in data and isinstance(data["detail"], list):
+            for err in data["detail"]:
+                if isinstance(err, dict):
+                    loc = [str(part).lower() for part in err.get("loc", ())]
+                    is_sensitive = any(
+                        s in loc for s in ("password", "secret", "token", "key", "authorization", "agent_key")
+                    )
+                    if is_sensitive and "input" in err:
+                        err["input"] = "[REDACTED]"
+                    if is_sensitive and "ctx" in err and isinstance(err["ctx"], dict):
+                        for k in list(err["ctx"].keys()):
+                            if any(s in str(k).lower() for s in ("password", "secret", "token", "key")):
+                                err["ctx"][k] = "[REDACTED]"
+        return JSONResponse(
+            status_code=res.status_code,
+            content=data,
+            headers=dict(res.headers),
+        )
+    except Exception:
+        return res
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled server error on {request.method} {request.url.path}: {exc}", exc_info=settings.DEBUG)
+    sanitized_msg = redact_sensitive_text(str(exc))
+    logger.error(
+        f"Unhandled server error on {request.method} {request.url.path}: {sanitized_msg}",
+        exc_info=settings.DEBUG,
+    )
     if settings.is_production:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -74,7 +120,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": str(exc)},
+        content={"detail": sanitized_msg},
     )
 
 # Include API Routers

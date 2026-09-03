@@ -49,6 +49,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 18A** | Production Configuration & Environment Hardening | **Complete** |
 | **Phase 18B-1** | GitHub Actions CI Foundation Pipeline | **Complete** |
 | **Phase 18B-2** | CI/CD Quality & Failure-Safety Hardening | **Complete** |
+| **Phase 18C** | API & Application Hardening | **Complete** |
 
 ---
 
@@ -69,6 +70,13 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 - Real-time revenue, order counts, cart conversion rate, and average order value (AOV).
 - AI attribution metrics and growth revenue tracking (upsell and cross-sell).
 - Live observable audit feed and order status breakdown.
+
+### 4. API & Application Hardening (Phase 18C)
+- **In-Memory Rate Limiting**: Multi-tier sliding-window rate limiting (`auth` and `default` tiers) returning standard `429 Too Many Requests` with `Retry-After` headers.
+- **Request Size & Input Protections**: Configurable body payload limits (`MAX_REQUEST_BODY_BYTES`, default 2MB) with immediate `413 Payload Too Large` responses and strict string length bounds on credentials and queries.
+- **Defensive Security Headers**: Comprehensive HTTP protection (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection`, `Referrer-Policy`, `Permissions-Policy`, and production `Strict-Transport-Security`).
+- **Error Handling & Information Disclosure**: Sensitive fields (passwords, tokens, keys) automatically redacted from `422` validation responses; generic masked responses for unhandled `500` server errors in production.
+- **Secret-Free Logging**: Automated `SensitiveDataRedactionFilter` scrubbing passwords, JWTs, Bearer tokens, API keys, and database passwords from all loggers.
 
 ---
 
@@ -92,10 +100,10 @@ npm run dev
 
 ### Running Test Suites
 ```bash
-# Pytest (331 tests across all phases)
+# Pytest (352 tests across all phases)
 backend/.venv/bin/pytest backend/tests/ -v
 
-# Postman / Newman (35 live endpoint tests)
+# Postman / Newman (35 live endpoint tests / 108 assertions)
 npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 ```
 

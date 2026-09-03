@@ -97,6 +97,11 @@ Available environment variables:
 - `RAZORPAY_KEY_SECRET`: Razorpay Test Mode Key Secret
 - `RAZORPAY_CURRENCY`: `INR` (default)
 - `RAZORPAY_WEBHOOK_SECRET`: Razorpay Webhook Secret for HMAC-SHA256 verification
+- `RATE_LIMIT_ENABLED`: Enable/disable in-memory sliding window rate limiting (default: `true`)
+- `RATE_LIMIT_AUTH_PER_MINUTE`: Rate limit for `/api/auth/*` endpoints (default: `30` in dev, `10` in prod, `1000` in test)
+- `RATE_LIMIT_DEFAULT_PER_MINUTE`: Rate limit for general `/api/*` endpoints (default: `300` in dev, `120` in prod, `10000` in test)
+- `MAX_REQUEST_BODY_BYTES`: Maximum allowed request payload size in bytes (default: `2097152` / 2MB)
+- `SECURITY_HEADERS_ENABLED`: Inject defensive security headers on all HTTP responses (default: `true`)
 
 > **Note**: `.env` contains sensitive credentials and is strictly excluded from Git.
 
