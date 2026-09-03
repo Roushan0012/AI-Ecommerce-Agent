@@ -57,6 +57,25 @@ class Settings:
         val = os.getenv("DEBUG", "true" if self.is_development else "false").lower().strip()
         return val in ("true", "1", "yes", "t")
 
+    # Server Network Binding
+    @property
+    def HOST(self) -> str:
+        return os.getenv("HOST", "0.0.0.0" if self.is_production else "127.0.0.1")
+
+    @property
+    def PORT(self) -> int:
+        try:
+            return int(os.getenv("PORT", "8000"))
+        except ValueError:
+            return 8000
+
+    @property
+    def WEB_CONCURRENCY(self) -> int:
+        try:
+            return max(1, int(os.getenv("WEB_CONCURRENCY", "4" if self.is_production else "1")))
+        except ValueError:
+            return 4 if self.is_production else 1
+
     # CORS Configuration
     @property
     def CORS_ORIGINS(self) -> List[str]:

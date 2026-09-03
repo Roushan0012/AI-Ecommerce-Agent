@@ -235,4 +235,93 @@ Phase 18E establishes end-to-end automated validation on every commit and pull r
 - **No Cloud Deployment**: CI only validates code correctness and buildability; it does not deploy to production or manage cloud infrastructure (reserved for future deployment phases).
 - **No Production Secrets**: CI never connects to live databases, production Razorpay instances, or external LLM APIs.
 
+---
+
+## 10. Deployment Architecture & Configuration Foundation (Phase 18F-1)
+
+Phase 18F-1 establishes the deployment configuration foundation across the application stack without introducing premature cloud infrastructure or altering application logic:
+
+### 1. Three-Tier Deployment Architecture
+```
+┌─────────────────────────┐          HTTPS / Bearer JWT          ┌─────────────────────────┐
+│     Next.js Frontend    │ ───────────────────────────────────► │     FastAPI Backend     │
+│  (React 19 / Next 16)   │                                      │  (Uvicorn ASGI Engine)  │
+└─────────────────────────┘                                      └────────────┬────────────┘
+             │                                                                │
+             │ Client Checkout Modal                                          │ SQLAlchemy ORM
+             ▼                                                                ▼
+┌─────────────────────────┐                                      ┌─────────────────────────┐
+│  Razorpay Payment Form  │                                      │   PostgreSQL / Supabase │
+│    (Public Key ID)      │                                      │ (Connection Pool / SSL) │
+└─────────────────────────┘                                      └─────────────────────────┘
+                                                                              │
+                                 ┌──────────────────────────────┬─────────────┴─────────────┐
+                                 ▼                              ▼                           ▼
+                     ┌───────────────────────┐      ┌───────────────────────┐   ┌───────────────────────┐
+                     │ External Agents (A2A) │      │  Razorpay Webhooks    │   │ AI Provider (Groq/OAI)│
+                     │ (X-Agent-Key machine) │      │ (HMAC-SHA256 verified)│   │  (Server-side calls)  │
+                     └───────────────────────┘      └───────────────────────┘   └───────────────────────┘
+```
+
+- **Client Tier (Next.js)**: Static and SSR front-end communicating with the backend over HTTPS using bearer tokens.
+- **Application Tier (FastAPI)**: Stateless ASGI application handling business logic, guardrails, rate limiting, and RBAC authorization.
+- **Data Tier (PostgreSQL / Supabase)**: Persistent relational store with foreign key constraints, transactional consistency, and connection pooling.
+- **External Integration Boundaries**:
+  - **Razorpay**: Client triggers checkout using public `NEXT_PUBLIC_RAZORPAY_KEY_ID`. Backend securely creates orders via `RAZORPAY_KEY_SECRET` and verifies payment webhooks via `RAZORPAY_WEBHOOK_SECRET` HMAC-SHA256 signature checking.
+  - **External Commerce Agents**: Connect exclusively via machine-to-machine endpoints (`/api/agent-commerce/*`) authenticated by constant-time `X-Agent-Key` validation.
+  - **AI Providers**: Server-side communication with Groq or OpenAI APIs using backend-held `AI_API_KEY`. Never exposed to client.
+
+### 2. Environment Matrix Comparison
+
+| Characteristic | Local / Development | CI / Test | Production |
+|---|---|---|---|
+| `ENVIRONMENT` | `development` | `test` | `production` |
+| `DEBUG` | `true` (configurable) | `false` | `false` (strictly enforced) |
+| **Server Binding** | `127.0.0.1:8000` | Mock / TestClient | `0.0.0.0:8000` (all interfaces) |
+| **Concurrency** | Single process (`--reload` optional) | Single process test worker | Multi-worker (`--workers 4`) |
+| **Database** | PostgreSQL or SQLite | SQLite (`sqlite:///./ci_test.db`) | Managed PostgreSQL (Supabase SSL) |
+| **CORS Origins** | `localhost:3000`, `127.0.0.1:3000` | Permissive for tests | Strict domain whitelist (no wildcard `*`) |
+| **Rate Limiting** | 30 auth / 300 default per min | 1000 auth / 10000 default | 10 auth / 120 default per min |
+| **Security Headers** | Basic headers | Basic headers | Strict HSTS, nosniff, DENY, origin |
+| **OpenAPI Docs** | Enabled (`/docs`, `/redoc`) | Disabled | Disabled (enabled only via `ENABLE_DOCS=true`) |
+| **Error Handling** | Detailed exceptions in dev | Assertions & tracebacks | Masked 500 responses & redacted 422s |
+
+### 3. Backend Production Startup Readiness
+- **Production Startup Command**:
+  ```bash
+  uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers ${WEB_CONCURRENCY:-4} --proxy-headers --forwarded-allow-ips "*"
+  ```
+- **Readiness Properties**:
+  - `--host 0.0.0.0`: Required by cloud containers and virtual machines to accept external ingress traffic.
+  - `--port ${PORT:-8000}`: Binds dynamically to container orchestrator-allocated ports (e.g. Render, Railway, Fly.io, Cloud Run).
+  - `--workers 4`: Provides parallel request execution across CPU cores.
+  - `--proxy-headers --forwarded-allow-ips "*"`: Accurately extracts client IPs from reverse proxy `X-Forwarded-For` headers for sliding-window rate limiting.
+  - **No Reload**: Development `--reload` is omitted to eliminate file-watching memory overhead.
+  - **Zero Code Changes Needed**: The existing entry point `app.main:app` is completely production-ready.
+
+### 4. Frontend Production Configuration
+- **API Base URL**: Configured via `NEXT_PUBLIC_API_BASE_URL` (e.g. `https://api.yourdomain.com`).
+- **Production Build Command**:
+  ```bash
+  cd frontend && npm ci && npm run build
+  ```
+- **Production Start Command**:
+  ```bash
+  cd frontend && npm run start -- -p ${PORT:-3000}
+  ```
+- **Security Boundary**: Only `NEXT_PUBLIC_*` variables are bundled into client assets. All database URLs, JWT signing secrets, Razorpay secrets, and machine keys remain completely isolated on the server.
+
+### 5. Localhost & Development Assumption Audit
+- **Findings**:
+  - `CORS_ORIGINS`: Safe development default (`http://localhost:3000`, `http://127.0.0.1:3000`), strictly requires explicit domain configuration in production (`validate_production_config`).
+  - `NEXT_PUBLIC_API_BASE_URL`: Safe development fallback (`http://127.0.0.1:8000`), dynamically overridden in production via environment variable.
+  - `HOST` and `PORT`: Local default `127.0.0.1:8000`, production default `0.0.0.0:8000`.
+- **Verdict**: Zero hardcoded production blockers exist. All local defaults function correctly in development while enabling complete environment configuration in production.
+
+### 6. Intentionally Deferred to Later Phase 18F Steps
+- **Containerization / Dockerfiles**: Deferred to containerization step (Phase 18F-2).
+- **Process Management & Orchestration**: Deferred to deployment configuration step (Phase 18F-3).
+- **Actual Cloud Infrastructure Provisioning**: Deferred to deployment execution step.
+
+
 

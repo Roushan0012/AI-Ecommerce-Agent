@@ -52,6 +52,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 18C** | API & Application Hardening | **Complete** |
 | **Phase 18D** | Frontend Production Configuration | **Complete** |
 | **Phase 18E** | CI/CD Pipeline Validation & Testing | **Complete** |
+| **Phase 18F-1** | Deployment Architecture & Configuration Foundation | **Complete** |
 
 ---
 
@@ -97,14 +98,25 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# Local Development Server:
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+# Production Deployment Startup:
+uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 4 --proxy-headers --forwarded-allow-ips "*"
 ```
 
 ### Frontend Setup
 ```bash
 cd frontend
 npm install
+
+# Local Development Server:
 npm run dev
+
+# Production Build & Start:
+npm run build
+npm run start
 ```
 
 ### Running Test Suites
@@ -112,7 +124,7 @@ npm run dev
 # Frontend Tests (9 automated unit/contract tests)
 cd frontend && npm test
 
-# Backend Tests (358 tests across all phases)
+# Backend Tests (367 tests across all phases)
 backend/.venv/bin/pytest backend/tests/ -v
 
 # Postman / Newman (35 live endpoint tests / 108 assertions)
