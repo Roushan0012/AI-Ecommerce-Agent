@@ -98,11 +98,9 @@ def test_no_secrets_embedded_in_orchestration():
     assert "ghp_" not in compose_content
     assert "BEGIN PRIVATE KEY" not in compose_content
 
-    # Check that critical variables reference environment expansions
-    assert "DATABASE_URL=${DATABASE_URL}" in compose_content
-    assert "JWT_SECRET_KEY=${JWT_SECRET_KEY}" in compose_content
-    assert "COMMERCE_AGENT_KEY=${COMMERCE_AGENT_KEY}" in compose_content
-    assert "RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}" in compose_content
+    # Check that critical variables are loaded securely via env_file
+    assert "env_file:" in compose_content
+    assert "./backend/.env" in compose_content
 
 
 def test_orchestration_managed_database_decoupling():
