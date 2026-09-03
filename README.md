@@ -54,6 +54,7 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 18E** | CI/CD Pipeline Validation & Testing | **Complete** |
 | **Phase 18F-1** | Deployment Architecture & Configuration Foundation | **Complete** |
 | **Phase 18F-2** | Backend Deployment Readiness | **Complete** |
+| **Phase 18F-3** | Process Supervision & Multi-Container Orchestration | **Complete** |
 
 ---
 
@@ -123,12 +124,30 @@ npm run build
 npm run start
 ```
 
+### Multi-Container Orchestration (Docker Compose)
+```bash
+# Build both frontend and backend production images
+docker compose build
+
+# Start orchestrated services in background
+docker compose up -d
+
+# Verify service health status
+docker compose ps
+
+# Follow container logs
+docker compose logs -f
+
+# Teardown services
+docker compose down
+```
+
 ### Running Test Suites
 ```bash
 # Frontend Tests (9 automated unit/contract tests)
 cd frontend && npm test
 
-# Backend Tests (373 tests across all phases)
+# Backend Tests (380 tests across all phases)
 backend/.venv/bin/pytest backend/tests/ -v
 
 # Postman / Newman (35 live endpoint tests / 108 assertions)

@@ -369,10 +369,88 @@ The platform exposes separated liveness and readiness endpoints for cloud orches
 | Brute Force / Excessive Requests | `RateLimitMiddleware` rejects client | 429 | Standard `Rate limit exceeded` header & JSON |
 | Unhandled Server Exception | `unhandled_exception_handler` redacts trace | 500 | Production receives generic `Internal Server Error` |
 
-### 6. Intentionally Deferred to Phase 18F-3
-- **Frontend Containerization & Production Build Image**: Deferred to 18F-3.
-- **Multi-Container Composition (`docker-compose.prod.yml`)**: Deferred to 18F-3.
-- **Cloud Infrastructure & CI/CD Deployment Workflows**: Deferred to final deployment phases.
+### 6. Phase 18F Roadmap Progression
+- **Backend Containerization & Readiness (Phase 18F-2)**: Complete.
+- **Process Supervision & Multi-Container Orchestration (Phase 18F-3)**: Implemented below.
+- **Actual Cloud Infrastructure Provisioning**: Deferred to deployment execution step.
+
+---
+
+## 12. Process Supervision & Multi-Container Orchestration (Phase 18F-3)
+
+Phase 18F-3 establishes production-oriented multi-container orchestration for the complete full-stack platform using Docker Compose:
+
+### 1. Orchestration Architecture
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   Docker Compose Network (Bridge)                      │
+│                                                                        │
+│   ┌───────────────────────────┐      HTTP       ┌──────────────────┐   │
+│   │   Frontend Container      │ ──────────────► │ Backend Container│   │
+│   │   (Node 20 Alpine)        │                 │ (Python 3.12)    │   │
+│   │   non-root user: nextjs   │                 │ non-root: appuser│   │
+│   │   Port: 3000              │                 │ Port: 8000       │   │
+│   │   Liveness: GET /         │                 │ Liveness: /health│   │
+│   └─────────────▲─────────────┘                 └────────┬─────────┘   │
+└─────────────────┼────────────────────────────────────────┼─────────────┘
+                  │ Browser Ingress                        │ SSL Connection
+                  │                                        ▼
+┌─────────────────┴─────────────┐         ┌──────────────────────────────┐
+│       Public Internet         │         │ Managed PostgreSQL / Supabase│
+│  (Users & Commerce Agents)    │         │     (Externally Hosted)      │
+└───────────────────────────────┘         └──────────────────────────────┘
+```
+
+- **Frontend Container (`frontend`)**:
+  - Image: `ai-commerce-agent-frontend:latest` (built via [`frontend/Dockerfile`](file:///Users/roushan_iiitbgp/Desktop/AI_Agent_Ecommerce_Platform/frontend/Dockerfile))
+  - Multi-stage Node 20-alpine build with production dependencies.
+  - Runs under dedicated non-root user `nextjs` (UID 1001).
+  - Lifecycle: `npm run build` at build time, `npm start -- -p 3000 -H 0.0.0.0` at run time.
+  - Health check: `wget -qO- http://localhost:3000/ || exit 1`.
+  - Service dependency: `depends_on: backend (condition: service_healthy)`.
+
+- **Backend Container (`backend`)**:
+  - Image: `ai-commerce-agent-backend:latest` (built via [`backend/Dockerfile`](file:///Users/roushan_iiitbgp/Desktop/AI_Agent_Ecommerce_Platform/backend/Dockerfile))
+  - Python 3.12-slim runtime with compiled dependencies.
+  - Runs under dedicated non-root user `appuser` (UID 1001).
+  - Lifecycle: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips "*"`.
+  - Health check: `curl -f http://localhost:8000/api/health || exit 1`.
+
+- **Externally Managed Data Tier**:
+  - PostgreSQL / Supabase remains hosted on Supabase's managed cloud infrastructure with SSL connection pooling.
+  - Zero local database container is spun up in Docker Compose, matching production topology.
+
+### 2. Service Lifecycle & Health Supervision
+- **Separation of Liveness and Readiness**:
+  - **Liveness probe (`/api/health`)**: Used by Docker Compose to supervise container health. Verifies that the Uvicorn ASGI loop is functioning and responsive.
+  - **Readiness probe (`/api/health/database`)**: Used by ingress/load balancers to route traffic only when PostgreSQL is connected.
+  - **Clean Process Exit**: If startup configuration validation fails (`ConfigurationError`), the process terminates immediately with non-zero exit code, triggering orchestrator restart policy or alert.
+
+### 3. Local Production-Like Orchestration Instructions
+```bash
+# 1. Validate docker-compose configuration
+docker compose config
+
+# 2. Build production container images
+docker compose build
+
+# 3. Start full-stack environment in background
+docker compose up -d
+
+# 4. Check service status and health probes
+docker compose ps
+
+# 5. Follow container logs
+docker compose logs -f
+
+# 6. Stop containers
+docker compose down
+```
+
+### 4. What Remains Deferred to Later Deployment Work
+- Cloud infrastructure provisioning (Terraform, AWS, Render, Railway).
+- Production TLS/SSL termination & reverse proxy certificates (e.g. Let's Encrypt / Cloudflare).
+- Cloud CI/CD auto-deployment workflows.
 
 
 
