@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   API_BASE_URL,
+  AgentSearchResponse,
   HealthResponse,
   ProductItem,
   fetchCurrentUser,
@@ -12,6 +13,7 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  searchWithAgent,
 } from "@/lib/api";
 import { AuthUser, subscribeAuth } from "@/lib/auth";
 
@@ -31,6 +33,108 @@ const CATEGORY_ICONS: Record<string, string> = {
   "Work & Travel": "🎒",
 };
 
+const AI_EXAMPLE_PROMPTS = [
+  "I need wireless headphones",
+  "mechanical keyboard",
+  "fast charger",
+  "travel organizer",
+];
+
+function formatCurrency(amount: string | number): string {
+  const num = Number(amount || 0);
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(num);
+}
+
+interface ProductCardProps {
+  product: ProductItem;
+  onAddToCart: (product: ProductItem) => void;
+  isAiMatch?: boolean;
+}
+
+function ProductCard({ product, onAddToCart, isAiMatch }: ProductCardProps) {
+  const inStock = product.inventory > 0;
+
+  return (
+    <div className="group relative flex flex-col justify-between rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-5 shadow-md transition-all hover:border-zinc-700 hover:bg-zinc-900 hover:shadow-xl hover:shadow-indigo-500/5">
+      <div className="space-y-3">
+        {/* Category & Stock Badges */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-300">
+            <span>{CATEGORY_ICONS[product.category || ""] || "🏷️"}</span>
+            <span>{product.category || "General"}</span>
+          </span>
+
+          <div className="flex items-center gap-1.5">
+            {isAiMatch && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-950/70 border border-purple-800/60 px-2 py-0.5 text-[10px] font-semibold text-purple-300">
+                ✨ AI Match
+              </span>
+            )}
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                inStock
+                  ? "bg-emerald-950/60 text-emerald-400 border border-emerald-900/50"
+                  : "bg-rose-950/60 text-rose-400 border border-rose-900/50"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  inStock ? "bg-emerald-400" : "bg-rose-400"
+                }`}
+              />
+              <span>{inStock ? `${product.inventory} in stock` : "Out of stock"}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Product Name & SKU */}
+        <div>
+          <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2">
+            {product.name}
+          </h3>
+          <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
+            SKU: {product.sku}
+          </p>
+        </div>
+
+        {/* Product Description */}
+        <p className="text-xs text-zinc-400 line-clamp-3 leading-relaxed">
+          {product.description || "No description provided."}
+        </p>
+      </div>
+
+      {/* Price & Action Button Footer */}
+      <div className="mt-5 pt-4 border-t border-zinc-800/80 flex items-center justify-between gap-3">
+        <div>
+          <span className="text-[10px] uppercase font-semibold text-zinc-500 block">
+            Price
+          </span>
+          <span className="text-base font-extrabold text-white tracking-tight">
+            {formatCurrency(product.price)}
+          </span>
+        </div>
+
+        <button
+          onClick={() => onAddToCart(product)}
+          disabled={!inStock}
+          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold shadow-sm transition-all cursor-pointer ${
+            inStock
+              ? "bg-indigo-600 text-white shadow-indigo-600/20 hover:bg-indigo-500 hover:scale-102 active:scale-98"
+              : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+          }`}
+        >
+          <span>🛒</span>
+          <span>{inStock ? "Add to Cart" : "Sold Out"}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   // Backend health state
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -46,32 +150,28 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
 
-  // Catalog state
+  // Step 1: Catalog & direct search state
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [totalProducts, setTotalProducts] = useState<number>(0);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
   const [productError, setProductError] = useState<string | null>(null);
   const [page, setPage] = useState<number>(1);
   const pageSize = 12;
-
-  // Search and filter state
   const [searchInput, setSearchInput] = useState<string>("");
   const [activeSearch, setActiveSearch] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
-  // Add to Cart placeholder feedback
+  // Step 2: AI Shopping Assistant state
+  const [aiPrompt, setAiPrompt] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiValidationError, setAiValidationError] = useState<string | null>(null);
+  const [aiResponse, setAiResponse] = useState<AgentSearchResponse | null>(null);
+
+  // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const formatCurrency = (amount: string | number) => {
-    const num = Number(amount || 0);
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 2,
-    }).format(num);
-  };
-
-  // Load products from backend API
+  // Load catalog from backend
   const loadCatalog = useCallback(
     async (searchKw?: string, cat?: string, pageNum: number = 1) => {
       setLoadingProducts(true);
@@ -101,12 +201,11 @@ export default function Home() {
     [pageSize]
   );
 
-  // Initialize connection & session
+  // Initialize session & catalog
   useEffect(() => {
     let ignore = false;
 
     async function initialize() {
-      // 1. Check backend health
       try {
         const h = await fetchHealth();
         if (!ignore) setHealth(h);
@@ -116,11 +215,9 @@ export default function Home() {
         if (!ignore) setHealthLoading(false);
       }
 
-      // 2. Restore authenticated session
       const user = await fetchCurrentUser();
       if (!ignore) setCurrentUser(user);
 
-      // 3. Load initial catalog
       if (!ignore) {
         await loadCatalog("", "All", 1);
       }
@@ -140,7 +237,7 @@ export default function Home() {
     };
   }, [loadCatalog]);
 
-  // Search handler
+  // Direct catalog search handler
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setActiveSearch(searchInput);
@@ -155,13 +252,54 @@ export default function Home() {
     loadCatalog(activeSearch, category, 1);
   };
 
-  // Clear filters
+  // Clear catalog filters
   const handleClearFilters = () => {
     setSearchInput("");
     setActiveSearch("");
     setSelectedCategory("All");
     setPage(1);
     loadCatalog("", "All", 1);
+  };
+
+  // Step 2: AI Shopping Assistant search handler
+  const handleAiSearch = async (promptToUse?: string) => {
+    const rawQuery = promptToUse !== undefined ? promptToUse : aiPrompt;
+    const query = rawQuery ? rawQuery.trim() : "";
+
+    if (!query) {
+      setAiValidationError("Please enter a shopping query or select an example prompt.");
+      return;
+    }
+
+    setAiValidationError(null);
+    setAiLoading(true);
+    setAiError(null);
+    setAiPrompt(query);
+
+    try {
+      const res = await searchWithAgent({
+        message: query,
+        page: 1,
+        page_size: 10,
+      });
+      setAiResponse(res);
+    } catch (err: unknown) {
+      setAiError(
+        err instanceof Error
+          ? err.message
+          : "Failed to process request with AI Shopping Agent. Please try again."
+      );
+      setAiResponse(null);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleClearAiSearch = () => {
+    setAiPrompt("");
+    setAiResponse(null);
+    setAiError(null);
+    setAiValidationError(null);
   };
 
   // Pagination handlers
@@ -232,7 +370,7 @@ export default function Home() {
 
   // Add to cart placeholder feedback
   const handleAddToCart = (product: ProductItem) => {
-    setToastMessage(`"${product.name}" added to cart selection (Cart integration in Step 2)`);
+    setToastMessage(`"${product.name}" added to selection (Cart checkout integration in next step)`);
     setTimeout(() => {
       setToastMessage(null);
     }, 3200);
@@ -327,7 +465,7 @@ export default function Home() {
       </header>
 
       {/* Main Content Area */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-12">
         {/* Storefront Hero Banner */}
         <section className="relative overflow-hidden rounded-2xl border border-zinc-800/80 bg-gradient-to-b from-zinc-900 via-zinc-900/60 to-zinc-950 p-6 sm:p-10 shadow-xl">
           <div className="relative z-10 max-w-3xl space-y-4">
@@ -341,257 +479,417 @@ export default function Home() {
             <p className="text-sm leading-relaxed text-zinc-400 sm:text-base">
               Discover audio gear, ergonomic mechanical keyboards, high-speed power hubs, and travel tech powered by real-time inventory and Razorpay checkout.
             </p>
-
-            {/* Search Input Form */}
-            <form onSubmit={handleSearchSubmit} className="pt-2 flex flex-col sm:flex-row gap-2.5">
-              <div className="relative flex-1">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-zinc-500">
-                  🔍
-                </span>
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Search products by keyword (e.g. headphones, keyboard, usb-c, organizer)..."
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950/90 pl-10 pr-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition-all shadow-inner"
-                />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchInput("");
-                      if (activeSearch) {
-                        setActiveSearch("");
-                        setPage(1);
-                        loadCatalog("", selectedCategory, 1);
-                      }
-                    }}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-xs text-zinc-500 hover:text-zinc-300"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              <button
-                type="submit"
-                disabled={loadingProducts}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 disabled:opacity-50 transition cursor-pointer"
-              >
-                {loadingProducts ? "Searching..." : "Search"}
-              </button>
-            </form>
           </div>
 
           <div className="absolute -right-16 -top-16 h-72 w-72 rounded-full bg-indigo-600/10 blur-3xl pointer-events-none" />
           <div className="absolute -left-16 -bottom-16 h-72 w-72 rounded-full bg-purple-600/10 blur-3xl pointer-events-none" />
         </section>
 
-        {/* Category Pills Filter & Results Count Bar */}
-        <section className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
-            {/* Category Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              {CATEGORIES.map((category) => {
-                const isSelected = selectedCategory === category;
-                return (
-                  <button
-                    key={category}
-                    onClick={() => handleCategorySelect(category)}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-white text-zinc-950 shadow-md scale-105"
-                        : "border border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
-                    }`}
-                  >
-                    <span>{CATEGORY_ICONS[category] || "🏷️"}</span>
-                    <span>{category}</span>
-                  </button>
-                );
-              })}
+        {/* STEP 2: AI Shopping Assistant Section */}
+        <section className="relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-zinc-900/90 to-indigo-950/30 p-6 sm:p-8 shadow-xl shadow-purple-950/10 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/40 bg-purple-950/50 px-3 py-0.5 text-xs font-semibold text-purple-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+                AI Commerce Agent • Natural Language
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                <span>✨</span>
+                <span>AI Shopping Assistant</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-zinc-300 max-w-2xl">
+                Describe your requirements in plain English (e.g. <em>"I need wireless headphones"</em>). The agent uses natural-language intent parsing to query the catalog.
+              </p>
             </div>
 
-            {/* Results Count & Active Filter Indicator */}
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <span>
-                {loadingProducts
-                  ? "Loading products..."
-                  : `Showing ${products.length} of ${totalProducts} product(s)`}
-              </span>
-              {(activeSearch || selectedCategory !== "All") && (
+            {aiResponse && (
+              <button
+                onClick={handleClearAiSearch}
+                className="self-start sm:self-center text-xs font-semibold text-purple-400 hover:text-purple-300 transition cursor-pointer border border-purple-800/60 rounded-lg px-3 py-1.5 bg-purple-950/30"
+              >
+                ✕ Clear AI Search
+              </button>
+            )}
+          </div>
+
+          {/* AI Search Input Form */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleAiSearch();
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <label htmlFor="ai-natural-language-input" className="block text-xs font-semibold text-purple-300 mb-1.5">
+                Natural-Language Shopping Query:
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <div className="relative flex-1">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-purple-400">
+                    ✨
+                  </span>
+                  <input
+                    id="ai-natural-language-input"
+                    type="text"
+                    value={aiPrompt}
+                    onChange={(e) => {
+                      setAiPrompt(e.target.value);
+                      if (aiValidationError) setAiValidationError(null);
+                    }}
+                    placeholder="Ask AI: e.g. 'I need wireless headphones' or 'Ergonomic mechanical keyboard for typing'..."
+                    className="w-full rounded-xl border border-purple-500/30 bg-zinc-950/90 pl-10 pr-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-purple-400 focus:ring-1 focus:ring-purple-400 focus:outline-none transition-all shadow-inner"
+                  />
+                </div>
                 <button
-                  onClick={handleClearFilters}
-                  className="text-xs font-semibold text-indigo-400 hover:underline cursor-pointer"
+                  id="ask-ai-button"
+                  type="submit"
+                  disabled={aiLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-600/30 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 transition cursor-pointer whitespace-nowrap"
                 >
-                  Reset all filters
+                  <span>{aiLoading ? "Thinking..." : "✨ Ask AI"}</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Client-side input validation warning */}
+            {aiValidationError && (
+              <p className="text-xs font-medium text-amber-400 flex items-center gap-1.5">
+                <span>⚠️</span>
+                <span>{aiValidationError}</span>
+              </p>
+            )}
+
+            {/* Interactive Example Prompts */}
+            <div className="pt-1">
+              <span className="text-[11px] font-semibold text-zinc-400 block mb-2">
+                💡 Try an example query:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {AI_EXAMPLE_PROMPTS.map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => handleAiSearch(example)}
+                    className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-1.5 text-xs text-zinc-300 hover:border-purple-500/50 hover:bg-purple-950/40 hover:text-purple-200 transition text-left cursor-pointer"
+                  >
+                    "{example}"
+                  </button>
+                ))}
+              </div>
+            </div>
+          </form>
+
+          {/* AI Loading State */}
+          {aiLoading && (
+            <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-6 text-center space-y-3 animate-pulse">
+              <div className="text-2xl animate-spin inline-block">✨</div>
+              <h4 className="text-sm font-bold text-purple-200">
+                AI Agent is analyzing your query...
+              </h4>
+              <p className="text-xs text-purple-400 max-w-md mx-auto">
+                Extracting shopping intent, filtering catalog constraints, and evaluating stock in real-time.
+              </p>
+            </div>
+          )}
+
+          {/* AI Error State */}
+          {aiError && !aiLoading && (
+            <div className="rounded-xl border border-rose-900/50 bg-rose-950/30 p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-rose-300 text-sm font-bold">
+                  <span>⚠️</span>
+                  <span>AI Agent Request Failed</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAiSearch()}
+                  className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-500 transition cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+              <p className="text-xs text-rose-400 leading-relaxed">{aiError}</p>
+            </div>
+          )}
+
+          {/* AI Results & Insights */}
+          {aiResponse && !aiLoading && (
+            <div className="space-y-6 pt-2">
+              {/* Agent Conversational Insight Box */}
+              <div className="rounded-xl border border-purple-500/40 bg-zinc-950/80 p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                    <span>💬</span>
+                    <span>AI Shopping Agent Response</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-zinc-400">
+                    Matches: <strong className="text-white">{aiResponse.total}</strong>
+                  </span>
+                </div>
+
+                <p className="text-sm text-zinc-200 leading-relaxed font-medium">
+                  {aiResponse.message}
+                </p>
+
+                {/* Extracted Intent Tags */}
+                {aiResponse.intent && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-800/80">
+                    <span className="text-[11px] font-semibold text-zinc-500">
+                      Parsed Intent:
+                    </span>
+                    {aiResponse.intent.search_query && (
+                      <span className="rounded-md bg-purple-950/80 border border-purple-800/60 px-2 py-0.5 text-[10px] font-mono text-purple-300">
+                        Query: {aiResponse.intent.search_query}
+                      </span>
+                    )}
+                    {aiResponse.intent.category && (
+                      <span className="rounded-md bg-indigo-950/80 border border-indigo-800/60 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
+                        Category: {aiResponse.intent.category}
+                      </span>
+                    )}
+                    {aiResponse.intent.max_price && (
+                      <span className="rounded-md bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                        Max Budget: ₹{Number(aiResponse.intent.max_price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                    {aiResponse.intent.min_price && (
+                      <span className="rounded-md bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                        Min Budget: ₹{Number(aiResponse.intent.min_price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Matched Product Cards */}
+              {aiResponse.items.length > 0 ? (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2">
+                    <span>✨</span>
+                    <span>AI Recommendations / AI Search Results ({aiResponse.items.length})</span>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {aiResponse.items.map((product) => (
+                      <ProductCard
+                        key={`ai-${product.id}`}
+                        product={product}
+                        onAddToCart={handleAddToCart}
+                        isAiMatch
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-8 text-center space-y-2">
+                  <p className="text-sm font-semibold text-zinc-300">
+                    No products matched all AI constraints.
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Try broadening your search or adjusting price bounds.
+                  </p>
+                </div>
               )}
             </div>
-          </div>
+          )}
         </section>
 
-        {/* Error State */}
-        {productError && (
-          <div className="rounded-2xl border border-rose-900/50 bg-rose-950/30 p-6 text-center space-y-3">
-            <div className="text-2xl">⚠️</div>
-            <h3 className="text-base font-bold text-rose-300">
-              Unable to load catalog products
-            </h3>
-            <p className="text-xs text-rose-400 max-w-md mx-auto">
-              {productError}
-            </p>
-            <button
-              onClick={() => loadCatalog(activeSearch, selectedCategory, page)}
-              className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-500 transition cursor-pointer"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Loading Skeleton Grid */}
-        {loadingProducts && !productError && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {Array.from({ length: 8 }).map((_, idx) => (
-              <div
-                key={idx}
-                className="flex flex-col justify-between rounded-2xl border border-zinc-800/60 bg-zinc-900/40 p-5 space-y-4 animate-pulse"
-              >
-                <div className="space-y-2.5">
-                  <div className="h-4 w-24 bg-zinc-800 rounded" />
-                  <div className="h-5 w-3/4 bg-zinc-800 rounded" />
-                  <div className="h-12 w-full bg-zinc-800/60 rounded" />
+        {/* STEP 1: Direct Catalog & Search Section */}
+        <section className="space-y-6 pt-4">
+          <div className="border-b border-zinc-800/80 pb-4 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-0.5 text-xs font-semibold text-zinc-300">
+                  <span>📦</span>
+                  <span>Direct Database Catalog • Keyword Search</span>
                 </div>
-                <div className="pt-4 border-t border-zinc-800/60 flex items-center justify-between">
-                  <div className="h-6 w-20 bg-zinc-800 rounded" />
-                  <div className="h-8 w-24 bg-zinc-800 rounded-lg" />
-                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
+                  Direct Catalog & Category Filter
+                </h2>
+                <p className="text-xs sm:text-sm text-zinc-400">
+                  Search specific keywords directly or filter products by hardware category.
+                </p>
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* Empty State */}
-        {!loadingProducts && !productError && products.length === 0 && (
-          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-12 text-center space-y-4">
-            <div className="text-4xl">🔍</div>
-            <h3 className="text-lg font-bold text-white">No products found</h3>
-            <p className="text-xs text-zinc-400 max-w-md mx-auto">
-              {activeSearch
-                ? `No products matched "${activeSearch}" in category "${selectedCategory}".`
-                : `There are currently no active products in category "${selectedCategory}".`}
-            </p>
-            <button
-              onClick={handleClearFilters}
-              className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
-            >
-              Clear filters & view all products
-            </button>
-          </div>
-        )}
-
-        {/* Product Cards Grid */}
-        {!loadingProducts && !productError && products.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map((product) => {
-              const inStock = product.inventory > 0;
-              return (
-                <div
-                  key={product.id}
-                  className="group relative flex flex-col justify-between rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-5 shadow-md transition-all hover:border-zinc-700 hover:bg-zinc-900 hover:shadow-xl hover:shadow-indigo-500/5"
-                >
-                  <div className="space-y-3">
-                    {/* Category & Stock Badges */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-300">
-                        <span>{CATEGORY_ICONS[product.category || ""] || "🏷️"}</span>
-                        <span>{product.category || "General"}</span>
-                      </span>
-
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          inStock
-                            ? "bg-emerald-950/60 text-emerald-400 border border-emerald-900/50"
-                            : "bg-rose-950/60 text-rose-400 border border-rose-900/50"
-                        }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            inStock ? "bg-emerald-400" : "bg-rose-400"
-                          }`}
-                        />
-                        <span>{inStock ? `${product.inventory} in stock` : "Out of stock"}</span>
-                      </span>
-                    </div>
-
-                    {/* Product Name & SKU */}
-                    <div>
-                      <h3 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2">
-                        {product.name}
-                      </h3>
-                      <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
-                        SKU: {product.sku}
-                      </p>
-                    </div>
-
-                    {/* Product Description */}
-                    <p className="text-xs text-zinc-400 line-clamp-3 leading-relaxed">
-                      {product.description || "No description provided."}
-                    </p>
-                  </div>
-
-                  {/* Price & Action Button Footer */}
-                  <div className="mt-5 pt-4 border-t border-zinc-800/80 flex items-center justify-between gap-3">
-                    <div>
-                      <span className="text-[10px] uppercase font-semibold text-zinc-500 block">
-                        Price
-                      </span>
-                      <span className="text-base font-extrabold text-white tracking-tight">
-                        {formatCurrency(product.price)}
-                      </span>
-                    </div>
-
+              {/* Direct Search Input Form */}
+              <form onSubmit={handleSearchSubmit} className="flex gap-2">
+                <div className="relative flex-1 sm:w-72">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-zinc-500 text-xs">
+                    🔍
+                  </span>
+                  <input
+                    id="catalog-keyword-search-input"
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Keyword search (e.g. keyboard, cable)..."
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-950 pl-8 pr-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
+                  />
+                  {searchInput && (
                     <button
-                      onClick={() => handleAddToCart(product)}
-                      disabled={!inStock}
-                      className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold shadow-sm transition-all cursor-pointer ${
-                        inStock
-                          ? "bg-indigo-600 text-white shadow-indigo-600/20 hover:bg-indigo-500 hover:scale-102 active:scale-98"
-                          : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                      type="button"
+                      onClick={() => {
+                        setSearchInput("");
+                        if (activeSearch) {
+                          setActiveSearch("");
+                          setPage(1);
+                          loadCatalog("", selectedCategory, 1);
+                        }
+                      }}
+                      className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-[10px] text-zinc-500 hover:text-zinc-300"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <button
+                  id="direct-catalog-search-button"
+                  type="submit"
+                  disabled={loadingProducts}
+                  className="rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition cursor-pointer whitespace-nowrap"
+                >
+                  Search Catalog
+                </button>
+              </form>
+            </div>
+
+            {/* Category Filter Pills & Results Count */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {CATEGORIES.map((category) => {
+                  const isSelected = selectedCategory === category;
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => handleCategorySelect(category)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-white text-zinc-950 shadow-md scale-105"
+                          : "border border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
                       }`}
                     >
-                      <span>🛒</span>
-                      <span>{inStock ? "Add to Cart" : "Sold Out"}</span>
+                      <span>{CATEGORY_ICONS[category] || "🏷️"}</span>
+                      <span>{category}</span>
                     </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <span>
+                  {loadingProducts
+                    ? "Loading catalog..."
+                    : `Showing ${products.length} of ${totalProducts} catalog item(s)`}
+                </span>
+                {(activeSearch || selectedCategory !== "All") && (
+                  <button
+                    onClick={handleClearFilters}
+                    className="text-xs font-semibold text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    Reset filters
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Catalog Error State */}
+          {productError && (
+            <div className="rounded-2xl border border-rose-900/50 bg-rose-950/30 p-6 text-center space-y-3">
+              <div className="text-2xl">⚠️</div>
+              <h3 className="text-base font-bold text-rose-300">
+                Unable to load catalog products
+              </h3>
+              <p className="text-xs text-rose-400 max-w-md mx-auto">
+                {productError}
+              </p>
+              <button
+                onClick={() => loadCatalog(activeSearch, selectedCategory, page)}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-500 transition cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Catalog Loading Skeleton Grid */}
+          {loadingProducts && !productError && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-col justify-between rounded-2xl border border-zinc-800/60 bg-zinc-900/40 p-5 space-y-4 animate-pulse"
+                >
+                  <div className="space-y-2.5">
+                    <div className="h-4 w-24 bg-zinc-800 rounded" />
+                    <div className="h-5 w-3/4 bg-zinc-800 rounded" />
+                    <div className="h-12 w-full bg-zinc-800/60 rounded" />
+                  </div>
+                  <div className="pt-4 border-t border-zinc-800/60 flex items-center justify-between">
+                    <div className="h-6 w-20 bg-zinc-800 rounded" />
+                    <div className="h-8 w-24 bg-zinc-800 rounded-lg" />
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {/* Pagination Controls */}
-        {!loadingProducts && !productError && totalPages > 1 && (
-          <div className="flex items-center justify-center gap-4 pt-6 border-t border-zinc-800/60">
-            <button
-              onClick={handlePrevPage}
-              disabled={page <= 1}
-              className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
-            >
-              ← Previous
-            </button>
-            <span className="text-xs text-zinc-400">
-              Page <strong className="text-white">{page}</strong> of{" "}
-              <strong className="text-white">{totalPages}</strong>
-            </span>
-            <button
-              onClick={handleNextPage}
-              disabled={page >= totalPages}
-              className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
-            >
-              Next →
-            </button>
-          </div>
-        )}
+          {/* Catalog Empty State */}
+          {!loadingProducts && !productError && products.length === 0 && (
+            <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-12 text-center space-y-4">
+              <div className="text-4xl">🔍</div>
+              <h3 className="text-lg font-bold text-white">No products found</h3>
+              <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                {activeSearch
+                  ? `No products matched "${activeSearch}" in category "${selectedCategory}".`
+                  : `There are currently no active products in category "${selectedCategory}".`}
+              </p>
+              <button
+                onClick={handleClearFilters}
+                className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+              >
+                Clear filters & view all products
+              </button>
+            </div>
+          )}
+
+          {/* Catalog Product Cards Grid */}
+          {!loadingProducts && !productError && products.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {products.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAddToCart={handleAddToCart}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {!loadingProducts && !productError && totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 pt-6 border-t border-zinc-800/60">
+              <button
+                onClick={handlePrevPage}
+                disabled={page <= 1}
+                className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                ← Previous
+              </button>
+              <span className="text-xs text-zinc-400">
+                Page <strong className="text-white">{page}</strong> of{" "}
+                <strong className="text-white">{totalPages}</strong>
+              </span>
+              <button
+                onClick={handleNextPage}
+                disabled={page >= totalPages}
+                className="rounded-lg border border-zinc-800 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </section>
       </main>
 
       {/* Customer / Merchant Authentication Modal */}

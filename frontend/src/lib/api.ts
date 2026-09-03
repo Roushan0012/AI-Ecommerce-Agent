@@ -58,6 +58,78 @@ export interface FetchProductsParams {
   page_size?: number;
 }
 
+export interface ShoppingIntent {
+  intent: "product_search" | "general" | "inquiry";
+  search_query?: string | null;
+  category?: string | null;
+  min_price?: number | string | null;
+  max_price?: number | string | null;
+  currency: string;
+  availability_required: boolean;
+}
+
+export interface AgentSearchRequest {
+  message: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface AgentSearchResponse {
+  message: string;
+  intent: ShoppingIntent;
+  items: ProductItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface RecommendedProductItem {
+  product: ProductItem;
+  score: number;
+  reason: string;
+}
+
+export interface AgentRecommendRequest {
+  message: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface AgentRecommendResponse {
+  message: string;
+  intent: ShoppingIntent;
+  items: RecommendedProductItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface GrowthRecommendationItem {
+  type: "upsell" | "cross_sell";
+  product: ProductItem;
+  primary_product_id: string;
+  primary_product_name: string;
+  score: number;
+  reason: string;
+}
+
+export interface AgentGrowthRequest {
+  message: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface AgentGrowthResponse {
+  message: string;
+  intent: ShoppingIntent;
+  primary_products: ProductItem[];
+  upsell: GrowthRecommendationItem[];
+  cross_sell: GrowthRecommendationItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface PaymentOrderResponse {
   payment_id: string;
   order_id: string;
@@ -256,6 +328,97 @@ export async function fetchProducts(
 
   const data: ProductListResponse = await response.json();
   return data;
+}
+
+// -----------------------------------------------------------------------------
+// AI Agent Endpoints
+// -----------------------------------------------------------------------------
+
+export async function searchWithAgent(
+  request: AgentSearchRequest
+): Promise<AgentSearchResponse> {
+  const trimmed = request.message ? request.message.trim() : "";
+  if (!trimmed) {
+    throw new Error("Message cannot be empty.");
+  }
+
+  const response = await authFetch(`${API_BASE_URL}/api/agent/search`, {
+    method: "POST",
+    body: JSON.stringify({
+      message: trimmed,
+      page: request.page || 1,
+      page_size: request.page_size || 10,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `AI search failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function getAgentRecommendations(
+  request: AgentRecommendRequest
+): Promise<AgentRecommendResponse> {
+  const trimmed = request.message ? request.message.trim() : "";
+  if (!trimmed) {
+    throw new Error("Message cannot be empty.");
+  }
+
+  const response = await authFetch(`${API_BASE_URL}/api/agent/recommend`, {
+    method: "POST",
+    body: JSON.stringify({
+      message: trimmed,
+      page: request.page || 1,
+      page_size: request.page_size || 10,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `AI recommendations failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return response.json();
+}
+
+export async function getAgentGrowth(
+  request: AgentGrowthRequest
+): Promise<AgentGrowthResponse> {
+  const trimmed = request.message ? request.message.trim() : "";
+  if (!trimmed) {
+    throw new Error("Message cannot be empty.");
+  }
+
+  const response = await authFetch(`${API_BASE_URL}/api/agent/growth`, {
+    method: "POST",
+    body: JSON.stringify({
+      message: trimmed,
+      page: request.page || 1,
+      page_size: request.page_size || 10,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message =
+      typeof errorData.detail === "string"
+        ? errorData.detail
+        : `AI growth suggestions failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  return response.json();
 }
 
 // -----------------------------------------------------------------------------
