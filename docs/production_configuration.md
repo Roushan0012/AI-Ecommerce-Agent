@@ -91,3 +91,12 @@ Cross-Origin Resource Sharing is controlled via the `CORS_ORIGINS` environment v
 | **Wildcard CORS (`*`)** | Allowed (non-production only) | Forbidden (`ConfigurationError`) |
 | **Fallback Secrets** | Permitted for local development | Forbidden (`ConfigurationError`) |
 | **500 Error Responses** | Contains exception detail | Masked generic error response |
+
+---
+
+## 6. Continuous Integration (CI) Security
+
+The automated GitHub Actions CI pipeline ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on pushes and pull requests targeting `main`.
+- **Zero Production Secrets in CI**: CI runs with `ENVIRONMENT=test` and an isolated SQLite test database. Production credentials, Supabase database URLs, and live payment keys are not stored in GitHub repository secrets or accessed in CI runs.
+- **Production Guardrail Integrity**: CI validates that all unit tests and security regression tests pass without weakening production validation safeguards.
+

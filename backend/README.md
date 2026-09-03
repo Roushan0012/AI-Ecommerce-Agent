@@ -120,6 +120,9 @@ python -m app.core.migrate
 pytest
 ```
 
+Automated testing is also executed on every push and pull request targeting `main` via the GitHub Actions CI pipeline ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)). CI runs in isolated test mode (`ENVIRONMENT=test`) and does not require production secrets.
+
+
 ### 7. Run Development Server
 
 ```bash

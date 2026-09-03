@@ -46,6 +46,8 @@ Phase 14 Merchant Dashboard (Real-Time Analytics & Growth Metrics)
 | **Phase 17A** | JWT Authentication Foundation & Argon2 Hashing | **Complete** |
 | **Phase 17B** | User Registration & Login Endpoints | **Complete** |
 | **Phase 17C** | JWT Protected APIs & Ownership Verification | **Complete** |
+| **Phase 18A** | Production Configuration & Environment Hardening | **Complete** |
+| **Phase 18B-1** | GitHub Actions CI Foundation Pipeline | **Complete** |
 
 ---
 
@@ -89,9 +91,47 @@ npm run dev
 
 ### Running Test Suites
 ```bash
-# Pytest (172 tests across all phases)
+# Pytest (331 tests across all phases)
 backend/.venv/bin/pytest backend/tests/ -v
 
 # Postman / Newman (35 live endpoint tests)
 npx newman run docs/postman/AI-Commerce-Agent-API.postman_collection.json
 ```
+
+---
+
+## Continuous Integration (CI Pipeline)
+
+The repository includes an automated GitHub Actions CI pipeline defined in [.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+### When It Runs
+- **Pushes** targeting the `main` branch.
+- **Pull Requests** targeting the `main` branch.
+- **Manual Trigger** (`workflow_dispatch`) for on-demand verification.
+
+### What It Validates
+1. **Backend Test Suite (`backend-tests`)**:
+   - Sets up Python 3.12 with pip dependency caching based on `backend/requirements.txt`.
+   - Installs backend dependencies via `pip install -r backend/requirements.txt`.
+   - Executes the complete backend pytest suite (`pytest -v`) in isolated test mode (`ENVIRONMENT=test`).
+   - Ensures all domain models, JWT authentication, RBAC, Agent-to-Agent boundaries, Razorpay webhooks, and security guardrails pass without regressions.
+2. **Frontend Production Build (`frontend-build`)**:
+   - Sets up Node.js 20 with npm dependency caching based on `frontend/package-lock.json`.
+   - Installs locked frontend dependencies via clean `npm ci`.
+   - Executes `npm run build` to verify Next.js compilation, TypeScript type-checking, and static page generation.
+
+### Environment & Secrets Safety
+- **Zero Production Secrets in Repository**: The CI pipeline requires no production secrets or cloud credentials stored in repository secrets.
+- **Isolated Test Mode**: Backend tests run with safe test/development fallback configuration and an isolated SQLite test database (`ci_test.db`).
+- **Secrets Protection**: Production `.env` and `.env.local` files are ignored by git and never committed or exposed in CI logs or artifacts.
+
+### Troubleshooting CI Failures
+When a CI run fails, developers should check:
+1. **Backend Test Failures**:
+   - Reproduce locally: `backend/.venv/bin/pytest backend/tests -v`
+   - Verify all model schemas, route handlers, or security guardrails conform to existing specifications.
+   - Ensure new code does not rely on local `.env` variables without providing safe test defaults in `Settings`.
+2. **Frontend Build Failures**:
+   - Reproduce locally: `cd frontend && npm ci && npm run build`
+   - Check for TypeScript compile errors, missing typings, or broken imports.
+   - Verify environment variable references use `NEXT_PUBLIC_` prefixes when required on the client side.
