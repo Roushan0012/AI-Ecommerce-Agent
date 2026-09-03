@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx tsx --test tests/**/*.test.ts"
+    "test": "npx tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "next": "16.3.3",
