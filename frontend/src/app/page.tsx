@@ -7,13 +7,16 @@ import {
   AgentSearchResponse,
   CartResponse,
   HealthResponse,
+  OrderResponse,
   ProductItem,
   addToCart,
   applyOptimisticQuantity,
   applyOptimisticRemoval,
+  createOrder,
   fetchCart,
   fetchCurrentUser,
   fetchHealth,
+  fetchOrderDetail,
   fetchProductById,
   fetchProducts,
   loginUser,
@@ -24,6 +27,7 @@ import {
   updateCartItemQuantity,
 } from "@/lib/api";
 import { AuthUser, subscribeAuth } from "@/lib/auth";
+import { launchRazorpayCheckout } from "@/lib/razorpay";
 
 const CATEGORIES = [
   "All",
@@ -225,6 +229,12 @@ export default function Home() {
   const [cartLoading, setCartLoading] = useState<boolean>(false);
   const [cartMutatingId, setCartMutatingId] = useState<string | null>(null);
 
+  // Step 4B: Razorpay Checkout state
+  const [isCheckingOut, setIsCheckingOut] = useState<boolean>(false);
+  const [checkoutStepMessage, setCheckoutStepMessage] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [confirmedOrder, setConfirmedOrder] = useState<OrderResponse | null>(null);
+
   // Product Detail Modal state
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
@@ -248,13 +258,14 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (isCartOpen) setIsCartOpen(false);
+        if (confirmedOrder) setConfirmedOrder(null);
+        if (isCartOpen && !isCheckingOut) setIsCartOpen(false);
         if (isDetailModalOpen) handleCloseProductDetail();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isCartOpen, isDetailModalOpen]);
+  }, [isCartOpen, isDetailModalOpen, confirmedOrder, isCheckingOut]);
 
   // Synchronize authenticated customer cart with backend
   const syncCart = useCallback(async (customerId: string) => {
@@ -466,6 +477,7 @@ export default function Home() {
       const updatedCart = await addToCart(currentUser.id, product.id, 1);
       setActiveCart(updatedCart);
       setCartItemCount(updatedCart.item_count);
+      setPendingOrderId(null);
       showToast(
         `Added "${product.name}" to cart! (Cart total: ${formatCurrency(updatedCart.total)})`,
         "success"
@@ -495,6 +507,7 @@ export default function Home() {
     setActiveCart(optimisticCart);
     setCartItemCount(optimisticCart.item_count);
     setCartMutatingId(productId);
+    setPendingOrderId(null);
 
     try {
       // 2. Dispatch real authoritative mutation in the background
@@ -529,6 +542,7 @@ export default function Home() {
     setActiveCart(optimisticCart);
     setCartItemCount(optimisticCart.item_count);
     setCartMutatingId(productId);
+    setPendingOrderId(null);
 
     try {
       // 2. Dispatch real authoritative DELETE in the background
@@ -548,6 +562,112 @@ export default function Home() {
       showToast(`Cart Error: ${errorMsg}`, "error");
     } finally {
       setCartMutatingId(null);
+    }
+  };
+
+  // Step 4B: Real Razorpay Checkout flow
+  const handleProceedToCheckout = async () => {
+    // Prevent accidental duplicate clicks while checkout initialization is running
+    if (isCheckingOut) return;
+
+    // 1. Authentication check
+    if (!currentUser) {
+      setIsCartOpen(false);
+      setAuthPromptReason("Please sign in or create an account to proceed to checkout.");
+      setShowAuthModal(true);
+      return;
+    }
+
+    // 2. Active cart validation
+    if (!activeCart || activeCart.items.length === 0) {
+      showToast("Your cart is empty. Please add products before checking out.", "error");
+      return;
+    }
+
+    setIsCheckingOut(true);
+    setCheckoutStepMessage("Creating order from cart...");
+
+    try {
+      // 3. Atomically convert active cart into backend order (or reuse pending order)
+      let orderId = pendingOrderId;
+      if (!orderId) {
+        const order = await createOrder(currentUser.id, activeCart.id || undefined);
+        orderId = order.id;
+        setPendingOrderId(orderId);
+      }
+
+      setCheckoutStepMessage("Opening Razorpay Checkout...");
+
+      // 4. Launch Razorpay modal with authoritative backend order data
+      await launchRazorpayCheckout({
+        orderId,
+        customerId: currentUser.id,
+        name: "AI Commerce Store",
+        description: `Order #${orderId.slice(0, 8)}`,
+        customerEmail: currentUser.email,
+        onPaymentInitiated: () => {
+          setCheckoutStepMessage("Payment modal open in Razorpay Test Mode...");
+        },
+        onPaymentSuccess: async (_rzpRes, paymentOrder) => {
+          setCheckoutStepMessage("Payment received! Verifying with backend...");
+
+          // 5. Authoritative backend verification polling
+          let isVerified = false;
+          for (let attempt = 1; attempt <= 6; attempt++) {
+            try {
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              const verifiedOrder = await fetchOrderDetail(currentUser.id, paymentOrder.order_id);
+              if (verifiedOrder.status === "paid") {
+                isVerified = true;
+                setConfirmedOrder(verifiedOrder);
+                setPendingOrderId(null);
+                setIsCheckingOut(false);
+                setCheckoutStepMessage(null);
+                setIsCartOpen(false);
+                syncCart(currentUser.id);
+                showToast("Payment verified! Your order is confirmed.", "success");
+                break;
+              }
+            } catch {
+              // Retry on transient polling errors
+            }
+          }
+
+          if (!isVerified) {
+            // Webhook takes longer or queue delay
+            try {
+              const latestOrder = await fetchOrderDetail(currentUser.id, paymentOrder.order_id);
+              setConfirmedOrder(latestOrder);
+              setPendingOrderId(null);
+              setIsCartOpen(false);
+              syncCart(currentUser.id);
+            } catch {
+              // Fallback
+            }
+            setIsCheckingOut(false);
+            setCheckoutStepMessage(null);
+            showToast("Payment captured. Backend verification in progress.", "info");
+          }
+        },
+        onPaymentFailure: (error) => {
+          setIsCheckingOut(false);
+          setCheckoutStepMessage(null);
+          const reason =
+            error?.error?.description || "Payment failed or was declined in Razorpay.";
+          showToast(`Payment failed: ${reason}`, "error");
+        },
+        onModalDismiss: () => {
+          setIsCheckingOut(false);
+          setCheckoutStepMessage(null);
+          showToast("Checkout cancelled. Your items remain in your cart.", "info");
+        },
+      });
+    } catch (err: unknown) {
+      setIsCheckingOut(false);
+      setCheckoutStepMessage(null);
+      setPendingOrderId(null);
+      const msg = err instanceof Error ? err.message : "Failed to initialize checkout.";
+      showToast(`Checkout Error: ${msg}`, "error");
     }
   };
 
@@ -1223,7 +1343,7 @@ export default function Home() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setIsCartOpen(false);
+            if (e.target === e.currentTarget && !isCheckingOut) setIsCartOpen(false);
           }}
           role="dialog"
           aria-modal="true"
@@ -1247,7 +1367,8 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setIsCartOpen(false)}
-                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white text-base font-bold transition cursor-pointer"
+                disabled={isCheckingOut}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed text-base font-bold transition cursor-pointer"
                 aria-label="Close cart"
               >
                 ✕
@@ -1423,20 +1544,148 @@ export default function Home() {
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-zinc-500 text-center italic">
-                    Calculated authoritatively by backend cart engine. Razorpay checkout will be enabled in next step.
-                  </p>
+                  <button
+                    type="button"
+                    data-testid="proceed-to-checkout-btn"
+                    onClick={handleProceedToCheckout}
+                    disabled={isCheckingOut || !activeCart || activeCart.items.length === 0}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
+                  >
+                    <span>{isCheckingOut ? "⏳" : "💳"}</span>
+                    <span>
+                      {isCheckingOut
+                        ? checkoutStepMessage || "Initializing Checkout..."
+                        : `Proceed to Checkout (${formatCurrency(activeCart.total)})`}
+                    </span>
+                  </button>
 
                   <button
                     type="button"
                     onClick={() => setIsCartOpen(false)}
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+                    disabled={isCheckingOut}
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 text-xs font-semibold text-zinc-300 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
                   >
                     Continue Shopping
                   </button>
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Step 4B: Order Confirmation & Payment Status Modal */}
+      {confirmedOrder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setConfirmedOrder(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-confirmed-title"
+        >
+          <div className="relative w-full max-w-lg rounded-2xl border border-emerald-500/40 bg-zinc-900/95 p-6 sm:p-8 shadow-2xl shadow-emerald-950/20 space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/50 px-3 py-0.5 text-xs font-semibold text-emerald-300">
+                  <span>🎉</span>
+                  <span id="order-confirmed-title">Order Confirmation</span>
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                    confirmedOrder.status === "paid"
+                      ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800/60"
+                      : "bg-amber-950/80 text-amber-300 border border-amber-800/60"
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>
+                    {confirmedOrder.status === "paid" ? "Paid & Verified" : "Processing"}
+                  </span>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setConfirmedOrder(null)}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white text-base font-bold transition cursor-pointer"
+                aria-label="Close order confirmation"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="space-y-4">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400">Order Reference:</span>
+                  <span
+                    data-testid="confirmed-order-id"
+                    className="text-xs font-mono font-bold text-white"
+                  >
+                    #{confirmedOrder.id}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400">Payment Status:</span>
+                  <span
+                    data-testid="confirmed-order-status"
+                    className="text-xs font-bold text-emerald-400 capitalize"
+                  >
+                    {confirmedOrder.status}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t border-zinc-800/80 pt-2">
+                  <span className="text-xs text-zinc-400">Total Paid:</span>
+                  <span
+                    data-testid="confirmed-order-total"
+                    className="text-base font-black text-indigo-300 font-mono"
+                  >
+                    {formatCurrency(confirmedOrder.total)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  Purchased Items ({confirmedOrder.items.length})
+                </h4>
+                <div className="space-y-2 divide-y divide-zinc-800/60">
+                  {confirmedOrder.items.map((it) => (
+                    <div
+                      key={it.id}
+                      className="pt-2 first:pt-0 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-white">{it.product_name}</span>
+                        <span className="text-zinc-500 font-mono ml-2">x{it.quantity}</span>
+                      </div>
+                      <span className="font-mono text-zinc-300">
+                        {formatCurrency(it.total_price)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  data-testid="order-confirmed-close-btn"
+                  onClick={() => {
+                    setConfirmedOrder(null);
+                    setIsCartOpen(false);
+                  }}
+                  className="w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition cursor-pointer"
+                >
+                  Continue Shopping
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

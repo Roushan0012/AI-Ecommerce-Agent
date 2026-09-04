@@ -170,6 +170,33 @@ export interface PaymentOrderResponse {
   created_at: string;
 }
 
+export interface OrderItemResponse {
+  id: string;
+  order_id: string;
+  product_id: string;
+  product_name: string;
+  sku: string;
+  unit_price: string | number;
+  quantity: number;
+  total_price: string | number;
+  created_at: string;
+}
+
+export interface OrderResponse {
+  id: string;
+  merchant_id: string;
+  customer_id: string;
+  cart_id?: string | null;
+  status: string;
+  currency: string;
+  subtotal: string | number;
+  discount: string | number;
+  total: string | number;
+  items: OrderItemResponse[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface OverviewMetricsResponse {
   total_revenue: string | number;
   paid_orders_count: number;
@@ -841,4 +868,48 @@ export async function createPaymentOrder(
 
   const data: PaymentOrderResponse = await response.json();
   return data;
+}
+
+// -----------------------------------------------------------------------------
+// Order Endpoints
+// -----------------------------------------------------------------------------
+
+export async function createOrder(
+  customerId: string,
+  cartId?: string
+): Promise<OrderResponse> {
+  const response = await authFetch(`${API_BASE_URL}/api/orders`, {
+    method: "POST",
+    body: JSON.stringify({
+      customer_id: customerId,
+      cart_id: cartId || undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "Order creation failed" }));
+    throw new Error(err.detail || `Order creation failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchOrderDetail(
+  customerId: string,
+  orderId: string
+): Promise<OrderResponse> {
+  const response = await authFetch(
+    `${API_BASE_URL}/api/orders/${customerId}/${orderId}`,
+    {
+      method: "GET",
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "Failed to fetch order details" }));
+    throw new Error(err.detail || `Failed to fetch order details with status ${response.status}`);
+  }
+
+  return response.json();
 }
