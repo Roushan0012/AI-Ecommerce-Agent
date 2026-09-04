@@ -204,3 +204,25 @@ def test_get_product_invalid_uuid():
     client = get_test_app_client()
     resp = client.get("/api/products/not-a-valid-uuid")
     assert resp.status_code == 422
+
+
+def test_product_image_url_presence():
+    """Verify GET /api/products returns image_url on items and detail endpoint."""
+    client = get_test_app_client()
+    list_resp = client.get("/api/products?page_size=5")
+    assert list_resp.status_code == 200
+    items = list_resp.json()["items"]
+    assert len(items) > 0
+
+    for item in items:
+        assert "image_url" in item
+        assert item["image_url"] is not None
+        assert item["image_url"].startswith("https://")
+
+    # Detail endpoint
+    first_id = items[0]["id"]
+    detail_resp = client.get(f"/api/products/{first_id}")
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    assert "image_url" in detail
+    assert detail["image_url"] == items[0]["image_url"]

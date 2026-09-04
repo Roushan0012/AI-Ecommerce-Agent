@@ -50,6 +50,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "weight": "250g",
             "tier": "flagship",
         },
+        "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -70,6 +71,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "fast_charging": "USB-C quick charge",
             "tier": "entry-mid",
         },
+        "image_url": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -89,6 +91,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "waterproof_rating": "IP67 dust & waterproof",
             "tier": "budget-friendly",
         },
+        "image_url": "https://images.unsplash.com/photo-1545454675-3531b543be5d?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
 
@@ -111,6 +114,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "compatibility": "macOS, Windows, iOS, Android",
             "tier": "premium",
         },
+        "image_url": "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -130,6 +134,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "buttons": "6 programmable buttons",
             "tier": "mid-tier",
         },
+        "image_url": "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -148,6 +153,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "features": "Water-resistant coating, anti-fray stitched edges",
             "tier": "budget-friendly",
         },
+        "image_url": "https://images.unsplash.com/photo-1593062096033-9a26b09da705?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -167,6 +173,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "foldable": True,
             "tier": "mid-tier",
         },
+        "image_url": "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
 
@@ -187,6 +194,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "protection": "Over-voltage, over-current, short-circuit, thermal guard",
             "tier": "budget-friendly",
         },
+        "image_url": "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -205,6 +213,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "form_factor": "Desktop station with 1.5m AC power cable",
             "tier": "premium-upsell",
         },
+        "image_url": "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -222,6 +231,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "compatibility": "MacBook M1/M2/M3, Windows laptops, iPad Pro, Steam Deck",
             "tier": "essential-dock",
         },
+        "image_url": "https://images.unsplash.com/photo-1625842268584-8f3296236761?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -240,6 +250,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "bend_lifespan": "30,000+ bends",
             "tier": "budget-cross-sell",
         },
+        "image_url": "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
 
@@ -261,6 +272,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "features": "TSA checkpoint-friendly, quick-access card slot, luggage pass-through",
             "tier": "premium-travel",
         },
+        "image_url": "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -278,6 +290,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "compartments": "2 main zipper compartments with 8 elastic slots & 4 mesh pockets",
             "tier": "budget-cross-sell",
         },
+        "image_url": "https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
     {
@@ -296,6 +309,7 @@ CATALOG_PRODUCTS: List[Dict[str, Any]] = [
             "temperature_retention": "Cold: 24h, Hot: 12h",
             "tier": "lifestyle-accessory",
         },
+        "image_url": "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&auto=format&fit=crop&q=80",
         "is_active": True,
     },
 ]
@@ -342,6 +356,7 @@ def seed_catalog(session: Session) -> Dict[str, Any]:
             existing_prod.inventory = item_data["inventory"]
             existing_prod.attributes = item_data["attributes"]
             existing_prod.is_active = item_data["is_active"]
+            existing_prod.image_url = item_data.get("image_url")
             products_updated += 1
         else:
             new_prod = Product(
@@ -356,6 +371,7 @@ def seed_catalog(session: Session) -> Dict[str, Any]:
                 sku=sku,
                 attributes=item_data["attributes"],
                 is_active=item_data["is_active"],
+                image_url=item_data.get("image_url"),
             )
             session.add(new_prod)
             products_created += 1

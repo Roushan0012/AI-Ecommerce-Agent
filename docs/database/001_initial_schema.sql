@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS products (
     sku VARCHAR(100) NOT NULL,
     attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_products_price_non_negative CHECK (price >= 0),

@@ -17,6 +17,7 @@ class ProductBase(BaseModel):
         default_factory=dict, description="Product metadata and attributes"
     )
     is_active: bool = Field(True, description="Whether product is active")
+    image_url: Optional[str] = Field(None, description="Product image URL")
 
 
 class ProductResponse(ProductBase):

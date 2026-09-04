@@ -37,6 +37,7 @@ export interface ProductItem {
   sku: string;
   attributes: Record<string, unknown>;
   is_active: boolean;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }

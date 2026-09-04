@@ -69,6 +69,48 @@ interface ProductCardProps {
   isAiMatch?: boolean;
 }
 
+function ProductImage({
+  src,
+  alt,
+  category,
+}: {
+  src?: string | null;
+  alt: string;
+  category?: string | null;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div
+        data-testid="product-image-fallback"
+        className="relative flex aspect-[16/10] w-full items-center justify-center rounded-xl border border-zinc-800/80 bg-gradient-to-br from-zinc-900 via-zinc-900/60 to-zinc-950 p-4 text-center overflow-hidden"
+      >
+        <div className="flex flex-col items-center gap-1 text-zinc-500">
+          <span className="text-3xl select-none" aria-hidden="true">
+            {CATEGORY_ICONS[category || ""] || "📦"}
+          </span>
+          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            {category || "Store Item"}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-950">
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onError={() => setHasError(true)}
+        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+      />
+    </div>
+  );
+}
+
 function ProductCard({
   product,
   onAddToCart,
@@ -109,6 +151,19 @@ function ProductCard({
               <span>{inStock ? `${product.inventory} in stock` : "Out of stock"}</span>
             </span>
           </div>
+        </div>
+
+        {/* Product Image */}
+        <div
+          onClick={() => onOpenDetails(product.id)}
+          className="cursor-pointer"
+          title={`View details for ${product.name}`}
+        >
+          <ProductImage
+            src={product.image_url}
+            alt={product.name}
+            category={product.category}
+          />
         </div>
 
         {/* Product Name (Clickable to open Product Details) & SKU */}
@@ -1770,6 +1825,15 @@ export default function Home() {
             {/* Modal Content: Authoritative Product Details */}
             {detailProduct && !detailLoading && (
               <div className="space-y-6">
+                {/* Product Image Preview */}
+                <div className="overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-950 max-h-64 flex items-center justify-center">
+                  <ProductImage
+                    src={detailProduct.image_url}
+                    alt={detailProduct.name}
+                    category={detailProduct.category}
+                  />
+                </div>
+
                 {/* Title & SKU */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-2">

@@ -54,6 +54,7 @@ Stores line items within each order.
 
 1. `001_initial_schema.sql`: Core schema creation with indexes, foreign keys, and check constraints.
 2. `002_seed_products.sql`: Idempotent SQL script to seed the demo merchant (`AI Commerce Demo Store`) and 14 realistic products across Audio, Computer Accessories, Chargers & Cables, and Work & Travel categories.
+3. `003_add_product_image_url.sql`: Idempotent SQL migration adding the nullable `image_url` column to `products`.
 
 ---
 
