@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   API_BASE_URL,
+  AgentRecommendResponse,
   AgentSearchResponse,
   CartResponse,
   HealthResponse,
   OrderResponse,
   ProductItem,
+  RecommendedProductItem,
   addToCart,
   applyOptimisticQuantity,
   applyOptimisticRemoval,
@@ -20,6 +22,7 @@ import {
   fetchOrderDetail,
   fetchProductById,
   fetchProducts,
+  getAgentRecommendations,
   loginUser,
   logoutUser,
   registerUser,
@@ -51,6 +54,13 @@ const AI_EXAMPLE_PROMPTS = [
   "mechanical keyboard",
   "fast charger",
   "travel organizer",
+];
+
+const AI_RECOMMEND_EXAMPLE_PROMPTS = [
+  "Best wireless headphones for travel under 15000",
+  "Ergonomic mechanical keyboard for coding",
+  "Fast GaN charger with multiple ports",
+  "Durable work and travel gear",
 ];
 
 function formatCurrency(amount: string | number): string {
@@ -243,6 +253,163 @@ function ProductCard({
   );
 }
 
+interface RecommendationCardProps {
+  item: RecommendedProductItem;
+  onAddToCart: (product: ProductItem) => void;
+  onOpenDetails: (productId: string) => void;
+  isAdding?: boolean;
+}
+
+function RecommendationCard({
+  item,
+  onAddToCart,
+  onOpenDetails,
+  isAdding,
+}: RecommendationCardProps) {
+  const { product, score, reason } = item;
+  const inStock = product.inventory > 0;
+  const matchPercentage = Math.round(score > 1 ? score : score * 100);
+
+  return (
+    <div
+      data-testid="recommendation-card"
+      className="group relative flex flex-col justify-between rounded-2xl border border-amber-500/30 bg-gradient-to-b from-zinc-900/90 via-zinc-900/60 to-zinc-950 p-5 shadow-md transition-all hover:border-amber-500/60 hover:shadow-xl hover:shadow-amber-500/5"
+    >
+      <div className="space-y-3">
+        {/* Category & Badges: Score & Stock */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-300">
+            <span>{CATEGORY_ICONS[product.category || ""] || "🏷️"}</span>
+            <span>{product.category || "General"}</span>
+          </span>
+
+          <div className="flex items-center gap-1.5">
+            <span
+              data-testid="recommendation-score"
+              className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/40 px-2.5 py-0.5 text-[11px] font-bold text-amber-300 shadow-sm"
+            >
+              <span>⭐</span>
+              <span>{matchPercentage}% Match</span>
+            </span>
+
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                inStock
+                  ? "bg-emerald-950/60 text-emerald-400 border border-emerald-900/50"
+                  : "bg-rose-950/60 text-rose-400 border border-rose-900/50"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  inStock ? "bg-emerald-400" : "bg-rose-400"
+                }`}
+              />
+              <span>{inStock ? `${product.inventory} in stock` : "Out of stock"}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Product Image */}
+        <div
+          onClick={() => onOpenDetails(product.id)}
+          className="cursor-pointer"
+          title={`View details for ${product.name}`}
+        >
+          <ProductImage
+            src={product.image_url}
+            alt={product.name}
+            category={product.category}
+          />
+        </div>
+
+        {/* Product Name (Clickable to open Product Details) & SKU */}
+        <div>
+          <button
+            type="button"
+            onClick={() => onOpenDetails(product.id)}
+            className="text-left text-sm font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-2 cursor-pointer w-full"
+            aria-label={`View details for ${product.name}`}
+          >
+            {product.name}
+          </button>
+          <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
+            SKU: {product.sku}
+          </p>
+        </div>
+
+        {/* AI Explainability Box */}
+        <div
+          data-testid="recommendation-reason"
+          className="rounded-xl border border-amber-500/25 bg-amber-950/20 p-3 text-xs text-amber-200/90 leading-relaxed space-y-1"
+        >
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-400">
+            <span>💡</span>
+            <span>Why this matches:</span>
+          </div>
+          <p className="line-clamp-3 text-[11px] text-zinc-300">{reason}</p>
+        </div>
+
+        {/* Product Description */}
+        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+          {product.description || "No description provided."}
+        </p>
+      </div>
+
+      {/* Price & Action Button Footer */}
+      <div className="mt-5 pt-4 border-t border-zinc-800/80 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-semibold text-zinc-500 block">
+              Price
+            </span>
+            <span className="text-base font-extrabold text-white tracking-tight">
+              {formatCurrency(product.price)}
+            </span>
+          </div>
+
+          <span className="text-[11px] font-mono text-zinc-400">
+            {inStock ? `${product.inventory} available` : "Unavailable"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="view-details-btn"
+            onClick={() => onOpenDetails(product.id)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800/90 py-2.5 px-3 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white hover:border-zinc-500 transition cursor-pointer shadow-sm"
+            aria-label={`View details for ${product.name}`}
+          >
+            <span>👁️</span>
+            <span>View Details</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="add-to-cart-btn"
+            onClick={() => onAddToCart(product)}
+            disabled={!inStock || isAdding}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-3 text-xs font-semibold shadow-sm transition-all cursor-pointer ${
+              inStock
+                ? "bg-amber-600 text-white shadow-amber-600/20 hover:bg-amber-500 hover:scale-101 active:scale-99 disabled:opacity-50"
+                : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+            }`}
+          >
+            <span>{isAdding ? "⏳" : "🛒"}</span>
+            <span>
+              {isAdding
+                ? "Adding..."
+                : inStock
+                ? "Add to Cart"
+                : "Sold Out"}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   // Backend health state
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -270,12 +437,14 @@ export default function Home() {
   const [activeSearch, setActiveSearch] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
-  // Step 2: AI Shopping Assistant state
+  // Step 2 & Step 5.1: AI Shopping Assistant state
+  const [aiMode, setAiMode] = useState<"search" | "recommend">("search");
   const [aiPrompt, setAiPrompt] = useState<string>("");
   const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiValidationError, setAiValidationError] = useState<string | null>(null);
   const [aiResponse, setAiResponse] = useState<AgentSearchResponse | null>(null);
+  const [aiRecommendResponse, setAiRecommendResponse] = useState<AgentRecommendResponse | null>(null);
 
   // Step 3A & Step 4A: Real Authenticated Cart state
   const [activeCart, setActiveCart] = useState<CartResponse | null>(null);
@@ -506,6 +675,7 @@ export default function Home() {
         page_size: 10,
       });
       setAiResponse(res);
+      setAiRecommendResponse(null);
     } catch (err: unknown) {
       setAiError(
         err instanceof Error
@@ -518,9 +688,54 @@ export default function Home() {
     }
   };
 
+  // Step 5.1: AI Scored Recommendations handler
+  const handleAiRecommend = async (promptToUse?: string) => {
+    const rawQuery = promptToUse !== undefined ? promptToUse : aiPrompt;
+    const query = rawQuery ? rawQuery.trim() : "";
+
+    if (!query) {
+      setAiValidationError("Please enter a shopping query or select an example prompt for recommendations.");
+      return;
+    }
+
+    setAiValidationError(null);
+    setAiLoading(true);
+    setAiError(null);
+    setAiPrompt(query);
+
+    try {
+      const res = await getAgentRecommendations({
+        message: query,
+        page: 1,
+        page_size: 10,
+      });
+      setAiRecommendResponse(res);
+      setAiResponse(null);
+    } catch (err: unknown) {
+      setAiError(
+        err instanceof Error
+          ? err.message
+          : "Failed to generate AI recommendations. Please try again."
+      );
+      setAiRecommendResponse(null);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Unified submit handler respecting active AI Mode
+  const handleAiSubmit = (promptToUse?: string) => {
+    if (aiMode === "recommend") {
+      handleAiRecommend(promptToUse);
+    } else {
+      handleAiSearch(promptToUse);
+    }
+  };
+
   const handleClearAiSearch = () => {
     setAiPrompt("");
     setAiResponse(null);
+    setAiRecommendResponse(null);
     setAiError(null);
     setAiValidationError(null);
   };
@@ -1038,26 +1253,31 @@ export default function Home() {
           <div className="absolute -left-16 -bottom-16 h-72 w-72 rounded-full bg-purple-600/10 blur-3xl pointer-events-none" />
         </section>
 
-        {/* STEP 2: AI Shopping Assistant Section */}
+        {/* STEP 2 & STEP 5.1: AI Shopping Assistant & Recommendations Section */}
         <section className="relative overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-zinc-900/90 to-indigo-950/30 p-6 sm:p-8 shadow-xl shadow-purple-950/10 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/40 bg-purple-950/50 px-3 py-0.5 text-xs font-semibold text-purple-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
-                AI Commerce Agent • Natural Language
+                {aiMode === "recommend"
+                  ? "AI Recommendation Engine • Scored & Ranked"
+                  : "AI Commerce Agent • Natural Language"}
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                <span>✨</span>
-                <span>AI Shopping Assistant</span>
+                <span>{aiMode === "recommend" ? "⭐" : "✨"}</span>
+                <span>{aiMode === "recommend" ? "Top AI Picks & Recommendations" : "AI Shopping Assistant"}</span>
               </h2>
               <p className="text-xs sm:text-sm text-zinc-300 max-w-2xl">
-                Describe your requirements in plain English (e.g. <em>"I need wireless headphones"</em>). The agent uses natural-language intent parsing to query the catalog.
+                {aiMode === "recommend"
+                  ? "Receive personalized, AI-scored product recommendations with transparent explainability tags and match scores."
+                  : "Describe your requirements in plain English (e.g. \"I need wireless headphones\"). The agent uses natural-language intent parsing to query the catalog."}
               </p>
             </div>
 
-            {aiResponse && (
+            {(aiResponse || aiRecommendResponse) && (
               <button
                 type="button"
+                data-testid="clear-ai-btn"
                 onClick={handleClearAiSearch}
                 className="self-start sm:self-center text-xs font-semibold text-purple-400 hover:text-purple-300 transition cursor-pointer border border-purple-800/60 rounded-lg px-3 py-1.5 bg-purple-950/30"
               >
@@ -1066,25 +1286,67 @@ export default function Home() {
             )}
           </div>
 
-          {/* AI Search Input Form */}
+          {/* AI Mode Selector Toggle */}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold text-zinc-400">Assistant Mode:</span>
+            <div
+              data-testid="ai-mode-toggle"
+              className="inline-flex items-center rounded-xl border border-zinc-800 bg-zinc-950/80 p-1 text-xs"
+              role="group"
+              aria-label="AI Shopping Assistant Mode"
+            >
+              <button
+                type="button"
+                data-testid="ai-mode-search-btn"
+                onClick={() => setAiMode("search")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-semibold transition cursor-pointer ${
+                  aiMode === "search"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                <span>🔍</span>
+                <span>Smart Search</span>
+              </button>
+              <button
+                type="button"
+                data-testid="ai-mode-recommend-btn"
+                onClick={() => setAiMode("recommend")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-semibold transition cursor-pointer ${
+                  aiMode === "recommend"
+                    ? "bg-amber-600 text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                <span>⭐</span>
+                <span>Top AI Picks / Recommend for Me</span>
+              </button>
+            </div>
+          </div>
+
+          {/* AI Search / Recommendation Input Form */}
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              handleAiSearch();
+              handleAiSubmit();
             }}
             className="space-y-3"
           >
             <div>
               <label
                 htmlFor="ai-natural-language-input"
-                className="block text-xs font-semibold text-purple-300 mb-1.5"
+                className={`block text-xs font-semibold mb-1.5 ${
+                  aiMode === "recommend" ? "text-amber-300" : "text-purple-300"
+                }`}
               >
-                Natural-Language Shopping Query:
+                {aiMode === "recommend"
+                  ? "AI Product Recommendations Query:"
+                  : "Natural-Language Shopping Query:"}
               </label>
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-purple-400">
-                    ✨
+                    {aiMode === "recommend" ? "⭐" : "✨"}
                   </span>
                   <input
                     id="ai-natural-language-input"
@@ -1094,17 +1356,32 @@ export default function Home() {
                       setAiPrompt(e.target.value);
                       if (aiValidationError) setAiValidationError(null);
                     }}
-                    placeholder="Ask AI: e.g. 'I need wireless headphones' or 'Ergonomic mechanical keyboard for typing'..."
+                    placeholder={
+                      aiMode === "recommend"
+                        ? "Recommend for Me: e.g. 'Best wireless headphones for travel under 15000' or 'Ergonomic mechanical keyboard for coding'..."
+                        : "Ask AI: e.g. 'I need wireless headphones' or 'Ergonomic mechanical keyboard for typing'..."
+                    }
                     className="w-full rounded-xl border border-purple-500/30 bg-zinc-950/90 pl-10 pr-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 focus:border-purple-400 focus:ring-1 focus:ring-purple-400 focus:outline-none transition-all shadow-inner"
                   />
                 </div>
                 <button
                   id="ask-ai-button"
+                  data-testid={aiMode === "recommend" ? "get-recommendations-btn" : "ask-ai-search-btn"}
                   type="submit"
                   disabled={aiLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-600/30 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 transition cursor-pointer whitespace-nowrap"
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-50 transition cursor-pointer whitespace-nowrap ${
+                    aiMode === "recommend"
+                      ? "bg-gradient-to-r from-amber-600 to-orange-600 shadow-amber-600/30 hover:from-amber-500 hover:to-orange-500"
+                      : "bg-gradient-to-r from-purple-600 to-indigo-600 shadow-purple-600/30 hover:from-purple-500 hover:to-indigo-500"
+                  }`}
                 >
-                  <span>{aiLoading ? "Thinking..." : "✨ Ask AI"}</span>
+                  <span>
+                    {aiLoading
+                      ? "Thinking..."
+                      : aiMode === "recommend"
+                      ? "⭐ Recommend for Me"
+                      : "✨ Ask AI"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -1123,11 +1400,11 @@ export default function Home() {
                 💡 Try an example query:
               </span>
               <div className="flex flex-wrap gap-2">
-                {AI_EXAMPLE_PROMPTS.map((example) => (
+                {(aiMode === "recommend" ? AI_RECOMMEND_EXAMPLE_PROMPTS : AI_EXAMPLE_PROMPTS).map((example) => (
                   <button
                     key={example}
                     type="button"
-                    onClick={() => handleAiSearch(example)}
+                    onClick={() => handleAiSubmit(example)}
                     className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-1.5 text-xs text-zinc-300 hover:border-purple-500/50 hover:bg-purple-950/40 hover:text-purple-200 transition text-left cursor-pointer"
                   >
                     "{example}"
@@ -1141,11 +1418,15 @@ export default function Home() {
           {aiLoading && (
             <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-6 text-center space-y-3 animate-pulse">
               <div className="text-2xl animate-spin inline-block">✨</div>
-              <h4 className="text-sm font-bold text-purple-200">
-                AI Agent is analyzing your query...
+              <h4 className={`text-sm font-bold ${aiMode === "recommend" ? "text-amber-200" : "text-purple-200"}`}>
+                {aiMode === "recommend"
+                  ? "AI Recommendation Engine is analyzing candidates..."
+                  : "AI Agent is analyzing your query..."}
               </h4>
-              <p className="text-xs text-purple-400 max-w-md mx-auto">
-                Extracting shopping intent, filtering catalog constraints, and evaluating stock in real-time.
+              <p className={`text-xs max-w-md mx-auto ${aiMode === "recommend" ? "text-amber-400" : "text-purple-400"}`}>
+                {aiMode === "recommend"
+                  ? "Scoring product specifications, feature relevance, ratings, and budget constraints."
+                  : "Extracting shopping intent, filtering catalog constraints, and evaluating stock in real-time."}
               </p>
             </div>
           )}
@@ -1160,7 +1441,7 @@ export default function Home() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleAiSearch()}
+                  onClick={() => handleAiSubmit()}
                   className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-semibold text-white hover:bg-rose-500 transition cursor-pointer"
                 >
                   Retry
@@ -1170,7 +1451,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* AI Results & Insights */}
+          {/* AI Search Results & Insights */}
           {aiResponse && !aiLoading && (
             <div className="space-y-6 pt-2">
               {/* Agent Conversational Insight Box */}
@@ -1248,6 +1529,89 @@ export default function Home() {
                   </p>
                   <p className="text-xs text-zinc-500">
                     Try broadening your search or adjusting price bounds.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP 5.1: AI Recommendations Results & Insights */}
+          {aiRecommendResponse && !aiLoading && (
+            <div data-testid="recommendations-results-container" className="space-y-6 pt-2">
+              {/* Agent Conversational Insight Box */}
+              <div className="rounded-xl border border-amber-500/40 bg-zinc-950/80 p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <span>⭐</span>
+                    <span>Top AI Recommendations</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-zinc-400">
+                    Recommendations: <strong className="text-white">{aiRecommendResponse.total}</strong>
+                  </span>
+                </div>
+
+                <p className="text-sm text-zinc-200 leading-relaxed font-medium">
+                  {aiRecommendResponse.message}
+                </p>
+
+                {/* Extracted Intent Tags */}
+                {aiRecommendResponse.intent && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-800/80">
+                    <span className="text-[11px] font-semibold text-zinc-500">
+                      Parsed Intent:
+                    </span>
+                    {aiRecommendResponse.intent.search_query && (
+                      <span className="rounded-md bg-purple-950/80 border border-purple-800/60 px-2 py-0.5 text-[10px] font-mono text-purple-300">
+                        Query: {aiRecommendResponse.intent.search_query}
+                      </span>
+                    )}
+                    {aiRecommendResponse.intent.category && (
+                      <span className="rounded-md bg-indigo-950/80 border border-indigo-800/60 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
+                        Category: {aiRecommendResponse.intent.category}
+                      </span>
+                    )}
+                    {aiRecommendResponse.intent.max_price && (
+                      <span className="rounded-md bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                        Max Budget: ₹{Number(aiRecommendResponse.intent.max_price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                    {aiRecommendResponse.intent.min_price && (
+                      <span className="rounded-md bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                        Min Budget: ₹{Number(aiRecommendResponse.intent.min_price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Matched Recommendation Cards */}
+              {aiRecommendResponse.items.length > 0 ? (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300 flex items-center gap-2">
+                    <span>⭐</span>
+                    <span>
+                      Top AI Recommendations ({aiRecommendResponse.items.length})
+                    </span>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {aiRecommendResponse.items.map((recItem) => (
+                      <RecommendationCard
+                        key={`rec-${recItem.product.id}`}
+                        item={recItem}
+                        onAddToCart={handleAddToCart}
+                        onOpenDetails={handleOpenProductDetail}
+                        isAdding={addingProductId === recItem.product.id}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div data-testid="empty-recommendations" className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-8 text-center space-y-2">
+                  <p className="text-sm font-semibold text-zinc-300">
+                    No recommendations found matching your preferences.
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Try describing a different product category or relaxing your budget constraints.
                   </p>
                 </div>
               )}
