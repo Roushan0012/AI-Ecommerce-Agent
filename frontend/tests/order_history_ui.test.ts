@@ -336,3 +336,65 @@ test("11. Customer ownership boundary enforced and zero machine keys leaked", ()
     "Order details must be fetched strictly with authenticated customer ID"
   );
 });
+
+test("12. Complete customer journey flow: checkout confirmation transition -> fetchCustomerOrders -> fetchOrderDetail", async () => {
+  const originalFetch = global.fetch;
+  const requestsMade: Array<{ url: string; method: string; authHeader: string }> = [];
+
+  setStoredToken("test_customer_jwt_session_e2e");
+
+  (global as unknown as { fetch: unknown }).fetch = async (
+    input: RequestInfo | URL,
+    init?: RequestInit
+  ) => {
+    const url = String(input);
+    const method = init?.method || "GET";
+    const headers = (init?.headers as Record<string, string>) || {};
+    requestsMade.push({ url, method, authHeader: headers["Authorization"] || "" });
+
+    if (url.includes("/api/orders/cust-uuid-e2e/") && !url.endsWith("/api/orders/cust-uuid-e2e")) {
+      // Single order detail
+      return new Response(JSON.stringify(sampleCustomerOrders.items[0]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if (url.endsWith("/api/orders/cust-uuid-e2e")) {
+      // List customer orders
+      return new Response(JSON.stringify(sampleCustomerOrders), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ detail: "Not found" }), { status: 404 });
+  };
+
+  try {
+    const customerId = "cust-uuid-e2e";
+
+    // 1. User views order history after checkout confirmation
+    const ordersList = await fetchCustomerOrders(customerId);
+    assert.equal(ordersList.items.length, 2);
+    assert.equal(ordersList.items[0].status, "paid");
+
+    // 2. User selects an order to view receipt
+    const targetOrderId = ordersList.items[0].id;
+    const orderDetail = await fetchOrderDetail(customerId, targetOrderId);
+    assert.equal(orderDetail.id, targetOrderId);
+    assert.equal(orderDetail.status, "paid");
+    assert.equal(orderDetail.items.length, 1);
+    assert.equal(orderDetail.items[0].sku, "AUD-AP-NC01");
+
+    // 3. Verify all requests carried authoritative Bearer token
+    assert.equal(requestsMade.length, 2);
+    assert.equal(requestsMade[0].authHeader, "Bearer test_customer_jwt_session_e2e");
+    assert.equal(requestsMade[1].authHeader, "Bearer test_customer_jwt_session_e2e");
+    assert.equal(requestsMade[0].url, `${API_BASE_URL}/api/orders/${customerId}`);
+    assert.equal(requestsMade[1].url, `${API_BASE_URL}/api/orders/${customerId}/${targetOrderId}`);
+  } finally {
+    global.fetch = originalFetch;
+    clearAuth();
+  }
+});
