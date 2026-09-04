@@ -15,6 +15,7 @@ import {
   createOrder,
   fetchCart,
   fetchCurrentUser,
+  fetchCustomerOrders,
   fetchHealth,
   fetchOrderDetail,
   fetchProductById,
@@ -290,6 +291,15 @@ export default function Home() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [confirmedOrder, setConfirmedOrder] = useState<OrderResponse | null>(null);
 
+  // Step 4C: Customer Order History state
+  const [isOrderHistoryOpen, setIsOrderHistoryOpen] = useState<boolean>(false);
+  const [customerOrders, setCustomerOrders] = useState<OrderResponse[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState<OrderResponse | null>(null);
+  const [detailOrderLoading, setDetailOrderLoading] = useState<boolean>(false);
+  const [detailOrderError, setDetailOrderError] = useState<string | null>(null);
+
   // Product Detail Modal state
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
   const [detailProductId, setDetailProductId] = useState<string | null>(null);
@@ -313,14 +323,16 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (confirmedOrder) setConfirmedOrder(null);
-        if (isCartOpen && !isCheckingOut) setIsCartOpen(false);
-        if (isDetailModalOpen) handleCloseProductDetail();
+        if (selectedOrderDetail) setSelectedOrderDetail(null);
+        else if (isOrderHistoryOpen) setIsOrderHistoryOpen(false);
+        else if (confirmedOrder) setConfirmedOrder(null);
+        else if (isCartOpen && !isCheckingOut) setIsCartOpen(false);
+        else if (isDetailModalOpen) handleCloseProductDetail();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isCartOpen, isDetailModalOpen, confirmedOrder, isCheckingOut]);
+  }, [isCartOpen, isDetailModalOpen, confirmedOrder, isCheckingOut, isOrderHistoryOpen, selectedOrderDetail]);
 
   // Synchronize authenticated customer cart with backend
   const syncCart = useCallback(async (customerId: string) => {
@@ -435,6 +447,9 @@ export default function Home() {
           setActiveCart(null);
           setCartItemCount(0);
           setIsCartOpen(false);
+          setIsOrderHistoryOpen(false);
+          setCustomerOrders([]);
+          setSelectedOrderDetail(null);
         }
       }
     });
@@ -726,6 +741,42 @@ export default function Home() {
     }
   };
 
+  // Step 4C: Customer Order History handlers
+  const handleOpenOrderHistory = useCallback(async () => {
+    setIsOrderHistoryOpen(true);
+    setSelectedOrderDetail(null);
+    setDetailOrderError(null);
+    if (!currentUser) {
+      return;
+    }
+    setOrdersLoading(true);
+    setOrdersError(null);
+    try {
+      const res = await fetchCustomerOrders(currentUser.id);
+      setCustomerOrders(res.items || []);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load order history.";
+      setOrdersError(msg);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [currentUser]);
+
+  const handleSelectOrder = async (orderId: string) => {
+    if (!currentUser) return;
+    setDetailOrderLoading(true);
+    setDetailOrderError(null);
+    try {
+      const detail = await fetchOrderDetail(currentUser.id, orderId);
+      setSelectedOrderDetail(detail);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load order details.";
+      setDetailOrderError(msg);
+    } finally {
+      setDetailOrderLoading(false);
+    }
+  };
+
   // Pagination handlers
   const totalPages = Math.ceil(totalProducts / pageSize) || 1;
 
@@ -792,6 +843,9 @@ export default function Home() {
     setActiveCart(null);
     setCartItemCount(0);
     setIsCartOpen(false);
+    setIsOrderHistoryOpen(false);
+    setCustomerOrders([]);
+    setSelectedOrderDetail(null);
     setAuthSuccess(null);
     setAuthError(null);
   };
@@ -915,6 +969,20 @@ export default function Home() {
             {/* User Account Controls */}
             {currentUser ? (
               <div className="flex items-center gap-2">
+                {/* Step 4C: Customer Order History Button */}
+                <button
+                  type="button"
+                  data-testid="header-orders-btn"
+                  onClick={handleOpenOrderHistory}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-semibold text-zinc-300 shadow-sm transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-white cursor-pointer"
+                  aria-label="View order history"
+                >
+                  <span>📜</span>
+                  <span>
+                    <span className="hidden sm:inline">My </span>Orders
+                  </span>
+                </button>
+
                 <div className="hidden sm:flex flex-col text-right">
                   <span className="text-xs font-semibold text-zinc-200">
                     {currentUser.email}
@@ -1727,7 +1795,19 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  data-testid="order-confirmed-view-orders-btn"
+                  onClick={() => {
+                    setConfirmedOrder(null);
+                    setIsCartOpen(false);
+                    handleOpenOrderHistory();
+                  }}
+                  className="flex-1 rounded-xl border border-indigo-500/40 bg-indigo-950/60 py-2.5 text-xs font-bold text-indigo-200 hover:bg-indigo-900/60 hover:text-white transition cursor-pointer text-center"
+                >
+                  📜 View Order History
+                </button>
                 <button
                   type="button"
                   data-testid="order-confirmed-close-btn"
@@ -1735,12 +1815,341 @@ export default function Home() {
                     setConfirmedOrder(null);
                     setIsCartOpen(false);
                   }}
-                  className="w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition cursor-pointer"
+                  className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition cursor-pointer text-center"
                 >
                   Continue Shopping
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4C: Customer Order History Modal / Drawer */}
+      {isOrderHistoryOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              if (selectedOrderDetail) setSelectedOrderDetail(null);
+              else setIsOrderHistoryOpen(false);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-history-title"
+          data-testid="order-history-modal"
+        >
+          <div className="relative w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900/95 p-6 sm:p-8 shadow-2xl shadow-indigo-950/20 space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-950/50 px-3 py-0.5 text-xs font-semibold text-indigo-300">
+                  <span>📜</span>
+                  <span id="order-history-title">
+                    {selectedOrderDetail ? "Order Details & Receipt" : "My Order History"}
+                  </span>
+                </span>
+                {currentUser && !selectedOrderDetail && (
+                  <span className="text-xs font-mono text-zinc-400">
+                    ({customerOrders.length} order{customerOrders.length === 1 ? "" : "s"})
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {currentUser && !selectedOrderDetail && (
+                  <button
+                    type="button"
+                    onClick={handleOpenOrderHistory}
+                    disabled={ordersLoading}
+                    data-testid="orders-refresh-btn"
+                    className="rounded-lg border border-zinc-800 bg-zinc-900/80 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-800 hover:text-white transition cursor-pointer disabled:opacity-50"
+                    title="Refresh order history"
+                    aria-label="Refresh orders"
+                  >
+                    ↻ <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedOrderDetail) {
+                      setSelectedOrderDetail(null);
+                    } else {
+                      setIsOrderHistoryOpen(false);
+                    }
+                  }}
+                  data-testid="order-history-close-btn"
+                  className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white text-base font-bold transition cursor-pointer"
+                  aria-label="Close order history"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* If Unauthenticated: Direct to Sign In */}
+            {!currentUser ? (
+              <div
+                data-testid="orders-unauth-view"
+                className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8 text-center space-y-4"
+              >
+                <div className="text-3xl">🔒</div>
+                <h3 className="text-base font-bold text-white">
+                  Sign In to Access Your Order History
+                </h3>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  Your orders and payment receipts are securely associated with your authenticated customer account. Please sign in or register to view your past purchases.
+                </p>
+                <button
+                  type="button"
+                  data-testid="order-history-signin-btn"
+                  onClick={() => {
+                    setIsOrderHistoryOpen(false);
+                    setAuthPromptReason("Please sign in or create an account to view your order history.");
+                    setShowAuthModal(true);
+                  }}
+                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition cursor-pointer"
+                >
+                  Sign In / Create Account
+                </button>
+              </div>
+            ) : selectedOrderDetail ? (
+              /* Selected Order Detail Receipt View */
+              <div data-testid="order-detail-view" className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    data-testid="order-detail-back-btn"
+                    onClick={() => setSelectedOrderDetail(null)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition cursor-pointer"
+                  >
+                    <span>←</span>
+                    <span>Back to Orders</span>
+                  </button>
+
+                  <span
+                    data-testid="order-detail-status-badge"
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      selectedOrderDetail.status === "paid"
+                        ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800/60"
+                        : selectedOrderDetail.status === "pending_payment"
+                        ? "bg-amber-950/80 text-amber-300 border border-amber-800/60"
+                        : "bg-rose-950/80 text-rose-300 border border-rose-800/60"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        selectedOrderDetail.status === "paid"
+                          ? "bg-emerald-400"
+                          : selectedOrderDetail.status === "pending_payment"
+                          ? "bg-amber-400 animate-pulse"
+                          : "bg-rose-400"
+                      }`}
+                    />
+                    <span className="capitalize">{selectedOrderDetail.status.replace("_", " ")}</span>
+                  </span>
+                </div>
+
+                {/* Receipt Card */}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 sm:p-5 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-3 border-b border-zinc-800 text-xs">
+                    <div>
+                      <span className="text-zinc-500 block text-[11px]">Order Reference</span>
+                      <span data-testid="order-detail-id" className="font-mono font-bold text-white break-all">
+                        #{selectedOrderDetail.id}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-500 block text-[11px]">Placed On</span>
+                      <span data-testid="order-detail-date" className="text-zinc-200">
+                        {new Date(selectedOrderDetail.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Itemized Products */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                      Purchased Items ({selectedOrderDetail.items.length})
+                    </h4>
+                    <div className="space-y-2 divide-y divide-zinc-800/60">
+                      {selectedOrderDetail.items.map((it) => (
+                        <div
+                          key={it.id}
+                          data-testid="order-detail-item"
+                          className="pt-2 first:pt-0 flex items-center justify-between text-xs"
+                        >
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-white block">{it.product_name}</span>
+                            <div className="flex items-center gap-2 text-[11px] text-zinc-500 font-mono">
+                              <span>SKU: {it.sku}</span>
+                              <span>•</span>
+                              <span>
+                                {formatCurrency(it.unit_price)} × {it.quantity}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="font-mono font-semibold text-zinc-200">
+                            {formatCurrency(it.total_price)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Pricing Breakdown */}
+                  <div className="border-t border-zinc-800 pt-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-zinc-400">
+                      <span>Subtotal</span>
+                      <span className="font-mono text-zinc-200">
+                        {formatCurrency(selectedOrderDetail.subtotal)}
+                      </span>
+                    </div>
+                    {Number(selectedOrderDetail.discount) > 0 && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span>Discount</span>
+                        <span className="font-mono">-{formatCurrency(selectedOrderDetail.discount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-zinc-800/80 pt-2 text-sm font-bold">
+                      <span className="text-white">Authoritative Total</span>
+                      <span
+                        data-testid="order-detail-total"
+                        className="font-mono font-black text-indigo-300 text-base"
+                      >
+                        {formatCurrency(selectedOrderDetail.total)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderDetail(null)}
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800/90 py-2.5 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white transition cursor-pointer"
+                  >
+                    ← Back to Order History
+                  </button>
+                </div>
+              </div>
+            ) : ordersLoading ? (
+              /* Loading State */
+              <div data-testid="orders-loading" className="py-12 text-center space-y-3">
+                <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+                <p className="text-xs text-zinc-400">Loading your order history from server...</p>
+              </div>
+            ) : ordersError ? (
+              /* Error State */
+              <div data-testid="orders-error" className="rounded-xl border border-rose-900/50 bg-rose-950/30 p-6 text-center space-y-3">
+                <div className="text-2xl">⚠️</div>
+                <h4 className="text-xs font-bold text-rose-300">Unable to load orders</h4>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto">{ordersError}</p>
+                <button
+                  type="button"
+                  onClick={handleOpenOrderHistory}
+                  className="rounded-xl bg-rose-900/50 px-4 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-800/60 transition cursor-pointer"
+                >
+                  Retry Loading
+                </button>
+              </div>
+            ) : customerOrders.length === 0 ? (
+              /* Empty State */
+              <div data-testid="orders-empty-state" className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-8 text-center space-y-4">
+                <div className="text-3xl">📦</div>
+                <h3 className="text-base font-bold text-white">No Orders Placed Yet</h3>
+                <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                  You haven&apos;t placed any orders yet. Browse our catalog, add products to your cart, and complete checkout to see your purchase receipts here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsOrderHistoryOpen(false)}
+                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition cursor-pointer"
+                >
+                  Browse Catalog
+                </button>
+              </div>
+            ) : (
+              /* Order List */
+              <div data-testid="orders-list" className="space-y-3">
+                {detailOrderError && (
+                  <div className="rounded-lg border border-rose-800/50 bg-rose-950/40 p-3 text-xs text-rose-300">
+                    {detailOrderError}
+                  </div>
+                )}
+                <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+                  {customerOrders.map((order) => {
+                    const itemCount = order.items?.length || 0;
+                    return (
+                      <div
+                        key={order.id}
+                        data-testid="order-card"
+                        className="group rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 transition hover:border-zinc-700 hover:bg-zinc-900/60 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-white" data-testid="order-item-id">
+                              #{order.id.slice(0, 8)}...
+                            </span>
+                            <span
+                              data-testid="order-item-status"
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                order.status === "paid"
+                                  ? "bg-emerald-950/80 text-emerald-300 border border-emerald-800/60"
+                                  : order.status === "pending_payment"
+                                  ? "bg-amber-950/80 text-amber-300 border border-amber-800/60"
+                                  : "bg-rose-950/80 text-rose-300 border border-rose-800/60"
+                              }`}
+                            >
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  order.status === "paid"
+                                    ? "bg-emerald-400"
+                                    : order.status === "pending_payment"
+                                    ? "bg-amber-400 animate-pulse"
+                                    : "bg-rose-400"
+                                }`}
+                              />
+                              <span className="capitalize">{order.status.replace("_", " ")}</span>
+                            </span>
+                          </div>
+
+                          <span className="text-[11px] text-zinc-500 font-mono" data-testid="order-item-date">
+                            {new Date(order.created_at).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-zinc-800/60 pt-2.5 text-xs">
+                          <span className="text-zinc-400 text-xs">
+                            {itemCount} item{itemCount === 1 ? "" : "s"}
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-indigo-300" data-testid="order-item-total">
+                              {formatCurrency(order.total)}
+                            </span>
+                            <button
+                              type="button"
+                              data-testid={`view-order-detail-btn-${order.id}`}
+                              onClick={() => handleSelectOrder(order.id)}
+                              disabled={detailOrderLoading}
+                              className="rounded-lg border border-indigo-500/40 bg-indigo-950/50 px-2.5 py-1 text-xs font-semibold text-indigo-300 hover:bg-indigo-900/60 hover:text-white transition cursor-pointer disabled:opacity-50"
+                            >
+                              {detailOrderLoading ? "Loading..." : "View Receipt →"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

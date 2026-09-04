@@ -198,6 +198,11 @@ export interface OrderResponse {
   updated_at: string;
 }
 
+export interface OrderListResponse {
+  items: OrderResponse[];
+  total: number;
+}
+
 export interface OverviewMetricsResponse {
   total_revenue: string | number;
   paid_orders_count: number;
@@ -910,6 +915,25 @@ export async function fetchOrderDetail(
   if (!response.ok) {
     const err = await response.json().catch(() => ({ detail: "Failed to fetch order details" }));
     throw new Error(err.detail || `Failed to fetch order details with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchCustomerOrders(
+  customerId: string
+): Promise<OrderListResponse> {
+  const response = await authFetch(
+    `${API_BASE_URL}/api/orders/${customerId}`,
+    {
+      method: "GET",
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: "Failed to fetch customer orders" }));
+    throw new Error(err.detail || `Failed to fetch customer orders with status ${response.status}`);
   }
 
   return response.json();
