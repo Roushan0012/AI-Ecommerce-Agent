@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   API_BASE_URL,
+  AgentGrowthResponse,
   AgentRecommendResponse,
   AgentSearchResponse,
   CartResponse,
+  GrowthRecommendationItem,
   HealthResponse,
   OrderResponse,
   ProductItem,
@@ -22,6 +24,7 @@ import {
   fetchOrderDetail,
   fetchProductById,
   fetchProducts,
+  getAgentGrowth,
   getAgentRecommendations,
   loginUser,
   logoutUser,
@@ -61,6 +64,13 @@ const AI_RECOMMEND_EXAMPLE_PROMPTS = [
   "Ergonomic mechanical keyboard for coding",
   "Fast GaN charger with multiple ports",
   "Durable work and travel gear",
+];
+
+const AI_GROWTH_EXAMPLE_PROMPTS = [
+  "I need a mechanical keyboard for coding",
+  "Fast GaN charger for laptop and phone",
+  "Show me wireless headphones with accessories",
+  "Upgrade my desk setup with ergonomic gear",
 ];
 
 function formatCurrency(amount: string | number): string {
@@ -410,6 +420,211 @@ function RecommendationCard({
   );
 }
 
+interface GrowthItemCardProps {
+  item: GrowthRecommendationItem;
+  onAddToCart: (product: ProductItem) => void;
+  onOpenDetails: (productId: string) => void;
+  isAdding?: boolean;
+}
+
+function GrowthItemCard({
+  item,
+  onAddToCart,
+  onOpenDetails,
+  isAdding,
+}: GrowthItemCardProps) {
+  const { product, score, reason, type, primary_product_name } = item;
+  const inStock = product.inventory > 0;
+  const matchPercentage = Math.round(score > 1 ? score : score * 100);
+  const isUpsell = type === "upsell";
+
+  return (
+    <div
+      data-testid={isUpsell ? "growth-upsell-card" : "growth-cross-sell-card"}
+      className={`group relative flex flex-col justify-between rounded-2xl border ${
+        isUpsell
+          ? "border-emerald-500/30 bg-gradient-to-b from-zinc-900/90 via-zinc-900/60 to-zinc-950 hover:border-emerald-500/60 hover:shadow-emerald-500/5"
+          : "border-cyan-500/30 bg-gradient-to-b from-zinc-900/90 via-zinc-900/60 to-zinc-950 hover:border-cyan-500/60 hover:shadow-cyan-500/5"
+      } p-5 shadow-md transition-all hover:shadow-xl`}
+    >
+      <div className="space-y-3">
+        {/* Category & Growth Badge & Stock */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {isUpsell ? (
+              <span
+                data-testid="growth-upsell-badge"
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold shadow-sm bg-emerald-500/15 border border-emerald-500/40 text-emerald-300"
+              >
+                <span>🚀</span>
+                <span>AI Upgrade</span>
+              </span>
+            ) : (
+              <span
+                data-testid="growth-cross-sell-badge"
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold shadow-sm bg-cyan-500/15 border border-cyan-500/40 text-cyan-300"
+              >
+                <span>🧩</span>
+                <span>Recommended Companion</span>
+              </span>
+            )}
+
+            <span className="inline-flex items-center gap-1 rounded-md bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-300">
+              <span>{CATEGORY_ICONS[product.category || ""] || "🏷️"}</span>
+              <span>{product.category || "General"}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span
+              data-testid="growth-score"
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold shadow-sm ${
+                isUpsell
+                  ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/50"
+                  : "bg-cyan-950/60 text-cyan-300 border border-cyan-800/50"
+              }`}
+            >
+              <span>{matchPercentage}% Match</span>
+            </span>
+
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                inStock
+                  ? "bg-emerald-950/60 text-emerald-400 border border-emerald-900/50"
+                  : "bg-rose-950/60 text-rose-400 border border-rose-900/50"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  inStock ? "bg-emerald-400" : "bg-rose-400"
+                }`}
+              />
+              <span>{inStock ? `${product.inventory} in stock` : "Out of stock"}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Primary Product Anchor tag if present */}
+        {primary_product_name && (
+          <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+            <span className="text-zinc-500">{isUpsell ? "Upgrade for:" : "Complements:"}</span>
+            <span className="font-semibold text-zinc-200 truncate">{primary_product_name}</span>
+          </p>
+        )}
+
+        {/* Product Image */}
+        <div
+          onClick={() => onOpenDetails(product.id)}
+          className="cursor-pointer"
+          title={`View details for ${product.name}`}
+        >
+          <ProductImage
+            src={product.image_url}
+            alt={product.name}
+            category={product.category}
+          />
+        </div>
+
+        {/* Product Name & SKU */}
+        <div>
+          <button
+            type="button"
+            onClick={() => onOpenDetails(product.id)}
+            className={`text-left text-sm font-bold text-white transition-colors line-clamp-2 cursor-pointer w-full ${
+              isUpsell ? "group-hover:text-emerald-300" : "group-hover:text-cyan-300"
+            }`}
+            aria-label={`View details for ${product.name}`}
+          >
+            {product.name}
+          </button>
+          <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
+            SKU: {product.sku}
+          </p>
+        </div>
+
+        {/* AI Growth Explainability Box */}
+        <div
+          data-testid="growth-reason"
+          className={`rounded-xl border p-3 text-xs leading-relaxed space-y-1 ${
+            isUpsell
+              ? "border-emerald-500/25 bg-emerald-950/20 text-emerald-200/90"
+              : "border-cyan-500/25 bg-cyan-950/20 text-cyan-200/90"
+          }`}
+        >
+          <div
+            className={`flex items-center gap-1.5 text-[11px] font-semibold ${
+              isUpsell ? "text-emerald-400" : "text-cyan-400"
+            }`}
+          >
+            <span>💡</span>
+            <span>{isUpsell ? "Why upgrade:" : "Why this companion:"}</span>
+          </div>
+          <p className="line-clamp-3 text-[11px] text-zinc-300">{reason}</p>
+        </div>
+
+        {/* Product Description */}
+        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+          {product.description || "No description provided."}
+        </p>
+      </div>
+
+      {/* Price & Action Button Footer */}
+      <div className="mt-5 pt-4 border-t border-zinc-800/80 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-semibold text-zinc-500 block">
+              Price
+            </span>
+            <span className="text-base font-extrabold text-white tracking-tight">
+              {formatCurrency(product.price)}
+            </span>
+          </div>
+
+          <span className="text-[11px] font-mono text-zinc-400">
+            {inStock ? `${product.inventory} available` : "Unavailable"}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="view-details-btn"
+            onClick={() => onOpenDetails(product.id)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800/90 py-2.5 px-3 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 hover:text-white hover:border-zinc-500 transition cursor-pointer shadow-sm"
+            aria-label={`View details for ${product.name}`}
+          >
+            <span>👁️</span>
+            <span>View Details</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="growth-add-to-cart-btn"
+            onClick={() => onAddToCart(product)}
+            disabled={!inStock || isAdding}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-3 text-xs font-semibold shadow-sm transition-all cursor-pointer ${
+              inStock
+                ? isUpsell
+                  ? "bg-emerald-600 text-white shadow-emerald-600/20 hover:bg-emerald-500 hover:scale-101 active:scale-99 disabled:opacity-50"
+                  : "bg-cyan-600 text-white shadow-cyan-600/20 hover:bg-cyan-500 hover:scale-101 active:scale-99 disabled:opacity-50"
+                : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+            }`}
+          >
+            <span>{isAdding ? "⏳" : "🛒"}</span>
+            <span>
+              {isAdding
+                ? "Adding..."
+                : inStock
+                ? "Add to Cart"
+                : "Sold Out"}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   // Backend health state
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -437,14 +652,15 @@ export default function Home() {
   const [activeSearch, setActiveSearch] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
-  // Step 2 & Step 5.1: AI Shopping Assistant state
-  const [aiMode, setAiMode] = useState<"search" | "recommend">("search");
+  // Step 2, Step 5.1, & Step 5.2: AI Shopping Assistant state
+  const [aiMode, setAiMode] = useState<"search" | "recommend" | "growth">("search");
   const [aiPrompt, setAiPrompt] = useState<string>("");
   const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiValidationError, setAiValidationError] = useState<string | null>(null);
   const [aiResponse, setAiResponse] = useState<AgentSearchResponse | null>(null);
   const [aiRecommendResponse, setAiRecommendResponse] = useState<AgentRecommendResponse | null>(null);
+  const [aiGrowthResponse, setAiGrowthResponse] = useState<AgentGrowthResponse | null>(null);
 
   // Step 3A & Step 4A: Real Authenticated Cart state
   const [activeCart, setActiveCart] = useState<CartResponse | null>(null);
@@ -676,6 +892,7 @@ export default function Home() {
       });
       setAiResponse(res);
       setAiRecommendResponse(null);
+      setAiGrowthResponse(null);
     } catch (err: unknown) {
       setAiError(
         err instanceof Error
@@ -711,6 +928,7 @@ export default function Home() {
       });
       setAiRecommendResponse(res);
       setAiResponse(null);
+      setAiGrowthResponse(null);
     } catch (err: unknown) {
       setAiError(
         err instanceof Error
@@ -723,9 +941,47 @@ export default function Home() {
     }
   };
 
+  // Step 5.2: AI Growth Engine (Upsell & Cross-sell) handler
+  const handleAiGrowth = async (promptToUse?: string) => {
+    const rawQuery = promptToUse !== undefined ? promptToUse : aiPrompt;
+    const query = rawQuery ? rawQuery.trim() : "";
+
+    if (!query) {
+      setAiValidationError("Please enter a shopping query or select an example prompt for growth suggestions.");
+      return;
+    }
+
+    setAiValidationError(null);
+    setAiLoading(true);
+    setAiError(null);
+    setAiPrompt(query);
+
+    try {
+      const res = await getAgentGrowth({
+        message: query,
+        page: 1,
+        page_size: 10,
+      });
+      setAiGrowthResponse(res);
+      setAiResponse(null);
+      setAiRecommendResponse(null);
+    } catch (err: unknown) {
+      setAiError(
+        err instanceof Error
+          ? err.message
+          : "Failed to generate AI growth recommendations. Please try again."
+      );
+      setAiGrowthResponse(null);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   // Unified submit handler respecting active AI Mode
   const handleAiSubmit = (promptToUse?: string) => {
-    if (aiMode === "recommend") {
+    if (aiMode === "growth") {
+      handleAiGrowth(promptToUse);
+    } else if (aiMode === "recommend") {
       handleAiRecommend(promptToUse);
     } else {
       handleAiSearch(promptToUse);
@@ -736,6 +992,7 @@ export default function Home() {
     setAiPrompt("");
     setAiResponse(null);
     setAiRecommendResponse(null);
+    setAiGrowthResponse(null);
     setAiError(null);
     setAiValidationError(null);
   };
@@ -1259,22 +1516,32 @@ export default function Home() {
             <div className="space-y-1">
               <div className="inline-flex items-center gap-2 rounded-full border border-purple-500/40 bg-purple-950/50 px-3 py-0.5 text-xs font-semibold text-purple-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
-                {aiMode === "recommend"
+                {aiMode === "growth"
+                  ? "AI Growth Engine • Upsell & Cross-sell"
+                  : aiMode === "recommend"
                   ? "AI Recommendation Engine • Scored & Ranked"
                   : "AI Commerce Agent • Natural Language"}
               </div>
               <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                <span>{aiMode === "recommend" ? "⭐" : "✨"}</span>
-                <span>{aiMode === "recommend" ? "Top AI Picks & Recommendations" : "AI Shopping Assistant"}</span>
+                <span>{aiMode === "growth" ? "🚀" : aiMode === "recommend" ? "⭐" : "✨"}</span>
+                <span>
+                  {aiMode === "growth"
+                    ? "AI Growth Engine (Upgrades & Accessories)"
+                    : aiMode === "recommend"
+                    ? "Top AI Picks & Recommendations"
+                    : "AI Shopping Assistant"}
+                </span>
               </h2>
               <p className="text-xs sm:text-sm text-zinc-300 max-w-2xl">
-                {aiMode === "recommend"
+                {aiMode === "growth"
+                  ? "Discover higher-tier product upgrades and complementary accessories powered by our intelligent AI growth engine."
+                  : aiMode === "recommend"
                   ? "Receive personalized, AI-scored product recommendations with transparent explainability tags and match scores."
                   : "Describe your requirements in plain English (e.g. \"I need wireless headphones\"). The agent uses natural-language intent parsing to query the catalog."}
               </p>
             </div>
 
-            {(aiResponse || aiRecommendResponse) && (
+            {(aiResponse || aiRecommendResponse || aiGrowthResponse) && (
               <button
                 type="button"
                 data-testid="clear-ai-btn"
@@ -1321,6 +1588,19 @@ export default function Home() {
                 <span>⭐</span>
                 <span>Top AI Picks / Recommend for Me</span>
               </button>
+              <button
+                type="button"
+                data-testid="ai-mode-growth-btn"
+                onClick={() => setAiMode("growth")}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 font-semibold transition cursor-pointer ${
+                  aiMode === "growth"
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                <span>🚀</span>
+                <span>Upgrades & Accessories</span>
+              </button>
             </div>
           </div>
 
@@ -1336,17 +1616,23 @@ export default function Home() {
               <label
                 htmlFor="ai-natural-language-input"
                 className={`block text-xs font-semibold mb-1.5 ${
-                  aiMode === "recommend" ? "text-amber-300" : "text-purple-300"
+                  aiMode === "growth"
+                    ? "text-emerald-300"
+                    : aiMode === "recommend"
+                    ? "text-amber-300"
+                    : "text-purple-300"
                 }`}
               >
-                {aiMode === "recommend"
+                {aiMode === "growth"
+                  ? "AI Growth & Upgrades Query:"
+                  : aiMode === "recommend"
                   ? "AI Product Recommendations Query:"
                   : "Natural-Language Shopping Query:"}
               </label>
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div className="relative flex-1">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-purple-400">
-                    {aiMode === "recommend" ? "⭐" : "✨"}
+                    {aiMode === "growth" ? "🚀" : aiMode === "recommend" ? "⭐" : "✨"}
                   </span>
                   <input
                     id="ai-natural-language-input"
@@ -1357,7 +1643,9 @@ export default function Home() {
                       if (aiValidationError) setAiValidationError(null);
                     }}
                     placeholder={
-                      aiMode === "recommend"
+                      aiMode === "growth"
+                        ? "AI Growth: e.g. 'Mechanical keyboard for coding' or 'Fast charger' to see upgrades & accessories..."
+                        : aiMode === "recommend"
                         ? "Recommend for Me: e.g. 'Best wireless headphones for travel under 15000' or 'Ergonomic mechanical keyboard for coding'..."
                         : "Ask AI: e.g. 'I need wireless headphones' or 'Ergonomic mechanical keyboard for typing'..."
                     }
@@ -1366,11 +1654,19 @@ export default function Home() {
                 </div>
                 <button
                   id="ask-ai-button"
-                  data-testid={aiMode === "recommend" ? "get-recommendations-btn" : "ask-ai-search-btn"}
+                  data-testid={
+                    aiMode === "growth"
+                      ? "get-growth-btn"
+                      : aiMode === "recommend"
+                      ? "get-recommendations-btn"
+                      : "ask-ai-search-btn"
+                  }
                   type="submit"
                   disabled={aiLoading}
                   className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-50 transition cursor-pointer whitespace-nowrap ${
-                    aiMode === "recommend"
+                    aiMode === "growth"
+                      ? "bg-gradient-to-r from-emerald-600 to-teal-600 shadow-emerald-600/30 hover:from-emerald-500 hover:to-teal-500"
+                      : aiMode === "recommend"
                       ? "bg-gradient-to-r from-amber-600 to-orange-600 shadow-amber-600/30 hover:from-amber-500 hover:to-orange-500"
                       : "bg-gradient-to-r from-purple-600 to-indigo-600 shadow-purple-600/30 hover:from-purple-500 hover:to-indigo-500"
                   }`}
@@ -1378,6 +1674,8 @@ export default function Home() {
                   <span>
                     {aiLoading
                       ? "Thinking..."
+                      : aiMode === "growth"
+                      ? "🚀 Find Upgrades & Add-ons"
                       : aiMode === "recommend"
                       ? "⭐ Recommend for Me"
                       : "✨ Ask AI"}
@@ -1400,7 +1698,12 @@ export default function Home() {
                 💡 Try an example query:
               </span>
               <div className="flex flex-wrap gap-2">
-                {(aiMode === "recommend" ? AI_RECOMMEND_EXAMPLE_PROMPTS : AI_EXAMPLE_PROMPTS).map((example) => (
+                {(aiMode === "growth"
+                  ? AI_GROWTH_EXAMPLE_PROMPTS
+                  : aiMode === "recommend"
+                  ? AI_RECOMMEND_EXAMPLE_PROMPTS
+                  : AI_EXAMPLE_PROMPTS
+                ).map((example) => (
                   <button
                     key={example}
                     type="button"
@@ -1416,15 +1719,35 @@ export default function Home() {
 
           {/* AI Loading State */}
           {aiLoading && (
-            <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-6 text-center space-y-3 animate-pulse">
+            <div data-testid="ai-loading" className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-6 text-center space-y-3 animate-pulse">
               <div className="text-2xl animate-spin inline-block">✨</div>
-              <h4 className={`text-sm font-bold ${aiMode === "recommend" ? "text-amber-200" : "text-purple-200"}`}>
-                {aiMode === "recommend"
+              <h4
+                className={`text-sm font-bold ${
+                  aiMode === "growth"
+                    ? "text-emerald-200"
+                    : aiMode === "recommend"
+                    ? "text-amber-200"
+                    : "text-purple-200"
+                }`}
+              >
+                {aiMode === "growth"
+                  ? "AI Growth Engine is finding upgrades & companion accessories..."
+                  : aiMode === "recommend"
                   ? "AI Recommendation Engine is analyzing candidates..."
                   : "AI Agent is analyzing your query..."}
               </h4>
-              <p className={`text-xs max-w-md mx-auto ${aiMode === "recommend" ? "text-amber-400" : "text-purple-400"}`}>
-                {aiMode === "recommend"
+              <p
+                className={`text-xs max-w-md mx-auto ${
+                  aiMode === "growth"
+                    ? "text-emerald-400"
+                    : aiMode === "recommend"
+                    ? "text-amber-400"
+                    : "text-purple-400"
+                }`}
+              >
+                {aiMode === "growth"
+                  ? "Evaluating category hierarchies, companion affinities, and budget limits to uncover cross-sells and upsells."
+                  : aiMode === "recommend"
                   ? "Scoring product specifications, feature relevance, ratings, and budget constraints."
                   : "Extracting shopping intent, filtering catalog constraints, and evaluating stock in real-time."}
               </p>
@@ -1433,7 +1756,7 @@ export default function Home() {
 
           {/* AI Error State */}
           {aiError && !aiLoading && (
-            <div className="rounded-xl border border-rose-900/50 bg-rose-950/30 p-5 space-y-3">
+            <div data-testid="ai-error" className="rounded-xl border border-rose-900/50 bg-rose-950/30 p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-rose-300 text-sm font-bold">
                   <span>⚠️</span>
@@ -1615,6 +1938,146 @@ export default function Home() {
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* STEP 5.2: AI Growth Engine Results (Upsell & Cross-sell) */}
+          {aiGrowthResponse && !aiLoading && (
+            <div data-testid="growth-results-container" className="space-y-6 pt-2">
+              {/* Agent Conversational Insight Box */}
+              <div className="rounded-xl border border-emerald-500/40 bg-zinc-950/80 p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <span>🚀</span>
+                    <span>AI Growth Engine Strategy</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-zinc-400">
+                    Total Suggestions: <strong className="text-white">{aiGrowthResponse.total}</strong>
+                  </span>
+                </div>
+
+                <p className="text-sm text-zinc-200 leading-relaxed font-medium">
+                  {aiGrowthResponse.message}
+                </p>
+
+                {/* Extracted Intent Tags */}
+                {aiGrowthResponse.intent && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-800/80">
+                    <span className="text-[11px] font-semibold text-zinc-500">
+                      Parsed Intent:
+                    </span>
+                    {aiGrowthResponse.intent.search_query && (
+                      <span className="rounded-md bg-purple-950/80 border border-purple-800/60 px-2 py-0.5 text-[10px] font-mono text-purple-300">
+                        Query: {aiGrowthResponse.intent.search_query}
+                      </span>
+                    )}
+                    {aiGrowthResponse.intent.category && (
+                      <span className="rounded-md bg-indigo-950/80 border border-indigo-800/60 px-2 py-0.5 text-[10px] font-mono text-indigo-300">
+                        Category: {aiGrowthResponse.intent.category}
+                      </span>
+                    )}
+                    {aiGrowthResponse.intent.max_price && (
+                      <span className="rounded-md bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                        Max Budget: ₹{Number(aiGrowthResponse.intent.max_price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                    {aiGrowthResponse.intent.min_price && (
+                      <span className="rounded-md bg-emerald-950/80 border border-emerald-800/60 px-2 py-0.5 text-[10px] font-mono text-emerald-300">
+                        Min Budget: ₹{Number(aiGrowthResponse.intent.min_price).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Primary Products Context (if any) */}
+              {aiGrowthResponse.primary_products && aiGrowthResponse.primary_products.length > 0 && (
+                <div data-testid="growth-primary-section" className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-purple-300 flex items-center gap-2">
+                      <span>📦</span>
+                      <span>Primary Products ({aiGrowthResponse.primary_products.length})</span>
+                    </h3>
+                    <span className="text-xs text-zinc-400">Products identified from your search query</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {aiGrowthResponse.primary_products.map((product) => (
+                      <ProductCard
+                        key={`primary-${product.id}`}
+                        product={product}
+                        onAddToCart={handleAddToCart}
+                        onOpenDetails={handleOpenProductDetail}
+                        isAdding={addingProductId === product.id}
+                        isAiMatch
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Upgrades Section (Upsell) */}
+              {aiGrowthResponse.upsell && aiGrowthResponse.upsell.length > 0 && (
+                <div data-testid="growth-upsell-section" className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-2">
+                      <span>🚀</span>
+                      <span>AI Upgrades & Tier Enhancements ({aiGrowthResponse.upsell.length})</span>
+                    </h3>
+                    <span className="text-xs text-emerald-400/80">Higher-performance & premium alternatives</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {aiGrowthResponse.upsell.map((item) => (
+                      <GrowthItemCard
+                        key={`upsell-${item.product.id}`}
+                        item={item}
+                        onAddToCart={handleAddToCart}
+                        onOpenDetails={handleOpenProductDetail}
+                        isAdding={addingProductId === item.product.id}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Cross-Sell Section (Companions / Accessories) */}
+              {aiGrowthResponse.cross_sell && aiGrowthResponse.cross_sell.length > 0 && (
+                <div data-testid="growth-cross-sell-section" className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-2">
+                      <span>🧩</span>
+                      <span>Recommended Companions & Accessories ({aiGrowthResponse.cross_sell.length})</span>
+                    </h3>
+                    <span className="text-xs text-cyan-400/80">Complementary gear to complete your setup</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {aiGrowthResponse.cross_sell.map((item) => (
+                      <GrowthItemCard
+                        key={`cross-sell-${item.product.id}`}
+                        item={item}
+                        onAddToCart={handleAddToCart}
+                        onOpenDetails={handleOpenProductDetail}
+                        isAdding={addingProductId === item.product.id}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State when both upsell and cross-sell are empty */}
+              {(!aiGrowthResponse.upsell || aiGrowthResponse.upsell.length === 0) &&
+                (!aiGrowthResponse.cross_sell || aiGrowthResponse.cross_sell.length === 0) && (
+                  <div
+                    data-testid="empty-growth"
+                    className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-8 text-center space-y-2"
+                  >
+                    <p className="text-sm font-semibold text-zinc-300">
+                      No growth recommendations found matching your query.
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      Try searching for a core product category like keyboards, chargers, or audio gear to see upgrades and companions.
+                    </p>
+                  </div>
+                )}
             </div>
           )}
         </section>
